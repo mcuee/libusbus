@@ -36,12 +36,21 @@ int winusbListen(UsbusContext *ctx)
     if (!winusbCtx->hDevNotify) {
         return UsbusIoErr;
     }
+
+    // XXX: need to figure out the appropriate way to create a handle
+    // XXX: need to iterate connected devices since notifications only arrive for connect/disconnect events
+
     return UsbusOK;
 }
 
 void winusbStopListen(UsbusContext *ctx)
 {
+    struct WinUSBContext *winusbCtx = &ctx->winusb;
 
+    if (winusbCtx->hDevNotify) {
+        UnregisterDeviceNotification(winusbCtx->hDevNotify);
+        winusbCtx->hDevNotify = 0;
+    }
 }
 
 int winusbOpen(UsbusDevice *device)
