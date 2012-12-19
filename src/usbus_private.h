@@ -5,6 +5,8 @@
 
 #if defined(PLATFORM_OSX)
 #include "platform/iokit.h"
+#elif defined(PLATFORM_WIN)
+#include "platform/winusb.h"
 #endif
 
 struct UsbusContext {
@@ -13,6 +15,8 @@ struct UsbusContext {
 
 #if defined(PLATFORM_OSX)
     struct IOKitContext iokit;
+#elif defined(PLATFORM_WIN)
+    struct WinUSBContext winusb;
 #endif
 };
 
@@ -33,6 +37,8 @@ struct UsbusDevice {
 
 #if defined(PLATFORM_OSX)
     struct IOKitDevice iokit;
+#elif defined(PLATFORM_WIN)
+    struct WinUSBDevice winusb;
 #endif
 };
 

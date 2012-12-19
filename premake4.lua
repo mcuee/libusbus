@@ -31,5 +31,8 @@ solution "usbus"
 
         files { "example/enumerator/*.c" }
         includedirs { "src" }
-
-        links { "usbus", "IOKit.framework", "Carbon.framework" }
+        if os.is("macosx") then
+            links { "usbus", "IOKit.framework", "Carbon.framework" }
+        elseif os.is("windows") then
+            links {}
+        end

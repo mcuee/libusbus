@@ -5,6 +5,8 @@
 
 #if defined(PLATFORM_OSX)
     const struct UsbusPlatform * const gPlatform = &platformIOKit;
+#elif defined(PLATFORM_WIN)
+    const struct UsbusPlatform * const gPlatform = &platformWinUSB;
 #else
     #error "Unsupported Platform"
 #endif
@@ -58,7 +60,7 @@ void usbusClose(UsbusDevice *d)
 {
     if (d->isOpen) {
         gPlatform->close(d);
-        d->isOpen = false;
+        d->isOpen = 0;
     }
 }
 

@@ -13,7 +13,8 @@ extern "C" {
 
 enum UsbusError {
     UsbusOK         = 0,
-    UsbusIoErr
+    UsbusIoErr      = 1,
+    UsbusErrUnknown
 };
 
 enum UsbusStatus {
