@@ -58,4 +58,6 @@ struct UsbusPlatform {
     int (*setConfiguration)(UsbusDevice *device, uint8_t config);
 };
 
+void dispatchConnectedDevice(UsbusContext *ctx, UsbusDevice *d);
+
 #endif // USBUS_PRIVATE_H

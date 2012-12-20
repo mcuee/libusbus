@@ -84,3 +84,18 @@ int usbusSetConfiguration(UsbusDevice *d, uint8_t config)
 {
     return gPlatform->setConfiguration(d, config);
 }
+
+
+/********************************
+ *  Internal Routines/Helpers
+ ********************************/
+
+void dispatchConnectedDevice(UsbusContext *ctx, UsbusDevice *d)
+{
+    uint8_t dispose = 1;
+    d->ctx = ctx;
+    ctx->connected(d, &dispose);
+    if (dispose) {
+        usbusDispose(d);
+    }
+}

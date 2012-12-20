@@ -3,10 +3,13 @@
 
 #include "usbus.h"
 
-// XXX: better windows platform detection
-#define WIN32_LEAN_AND_MEAN
+#ifndef WINVER
 #define WINVER 0x502    // declare at least WinXP support
-#include <windows.h>
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+#include <winusb.h>
 
 // winusb-specific potion of UsbusContext
 struct WinUSBContext {
@@ -15,7 +18,8 @@ struct WinUSBContext {
 
 // winusb-specific potion of UsbusDevice
 struct WinUSBDevice {
-
+    HANDLE deviceHandle;
+    WINUSB_INTERFACE_HANDLE winusbHandle;
 };
 
 extern const struct UsbusPlatform platformWinUSB;
