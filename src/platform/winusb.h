@@ -18,6 +18,7 @@ struct WinUSBContext {
 
 // winusb-specific potion of UsbusDevice
 struct WinUSBDevice {
+    TCHAR path[MAX_PATH];
     HANDLE deviceHandle;
     WINUSB_INTERFACE_HANDLE winusbHandle;
 };

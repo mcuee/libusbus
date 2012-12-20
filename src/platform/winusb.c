@@ -39,8 +39,9 @@ static char *win32ErrorString(uint32_t errorCode);
 
 static void enumerateConnectedDevices(UsbusContext *ctx, const GUID *guid);
 static int populateDeviceDetails(UsbusDevice *d, HDEVINFO devInfo, PSP_DEVINFO_DATA devInfoData, const GUID *guid);
+static int getDevicePath(UsbusDevice *d, HDEVINFO devInfo, PSP_DEVINFO_DATA devInfoData, const GUID *guid);
+static int getDeviceSpeed(UsbusDevice *d, WINUSB_INTERFACE_HANDLE h);
 static int serviceMatch(HDEVINFO devInfo, PSP_DEVINFO_DATA devInfoData, const char *service);
-static HANDLE getDeviceHandle(HDEVINFO devInfo, PSP_DEVINFO_DATA devInfoData, const GUID *guid);
 static int getDeviceProperty(HDEVINFO devInfo, PSP_DEVINFO_DATA devData, DWORD property, BYTE **buf, DWORD *sz);
 
 
@@ -98,12 +99,46 @@ void winusbStopListen(UsbusContext *ctx)
 
 int winusbOpen(UsbusDevice *device)
 {
-    return UsbusErrUnknown;
+    /*
+     * Platform specific implementation of usbusOpen()
+     */
+
+    struct WinUSBDevice *wd = &device->winusb;
+
+    wd->deviceHandle = CreateFile(wd->path,
+                                  GENERIC_READ | GENERIC_WRITE,
+                                  FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                  NULL,
+                                  OPEN_EXISTING,
+                                  FILE_FLAG_OVERLAPPED,
+                                  NULL);
+    if (wd->deviceHandle == INVALID_HANDLE_VALUE) {
+        logdebug("winusbOpen CreateFile: %s", win32ErrorString(GetLastError()));
+        return -1;
+    }
+
+    if (!WinUsb_Initialize(wd->deviceHandle, &wd->winusbHandle)) {
+        logerror("winusbOpen WinUsb_Initialize: %s\n", win32ErrorString(GetLastError()));
+        CloseHandle(wd->deviceHandle);
+        return -1;
+    }
+
+    return UsbusOK;
 }
 
 void winusbClose(UsbusDevice *device)
 {
+    struct WinUSBDevice *wd = &device->winusb;
 
+    if (wd->deviceHandle != INVALID_HANDLE_VALUE) {
+        CloseHandle(wd->deviceHandle);
+        wd->deviceHandle = INVALID_HANDLE_VALUE;
+    }
+
+    if (wd->winusbHandle != INVALID_HANDLE_VALUE) {
+        WinUsb_Free(wd->winusbHandle);
+        wd->winusbHandle = INVALID_HANDLE_VALUE;
+    }
 }
 
 int winusbGetConfiguration(UsbusDevice *device, uint8_t *config)
@@ -201,7 +236,17 @@ static int populateDeviceDetails(UsbusDevice *d, HDEVINFO devInfo, PSP_DEVINFO_D
         return -1;
     }
 
-    HANDLE h = getDeviceHandle(devInfo, devInfoData, guid);
+    if (getDevicePath(d, devInfo, devInfoData, guid) != UsbusOK) {
+        return -1;
+    }
+
+    HANDLE h = CreateFile(d->winusb.path,
+                          GENERIC_READ | GENERIC_WRITE,
+                          FILE_SHARE_READ | FILE_SHARE_WRITE,
+                          NULL,
+                          OPEN_EXISTING,
+                          FILE_FLAG_OVERLAPPED,
+                          NULL);
     if (h == INVALID_HANDLE_VALUE) {
         logerror("CreateFile: %s", win32ErrorString(GetLastError()));
         return -1;
@@ -225,6 +270,7 @@ static int populateDeviceDetails(UsbusDevice *d, HDEVINFO devInfo, PSP_DEVINFO_D
                                         &transferred);
     if (success) {
         memcpy(&d->descriptor, &desc, sizeof desc);
+        getDeviceSpeed(d, winusbHandle);
     }
 
     CloseHandle(h);
@@ -234,7 +280,7 @@ static int populateDeviceDetails(UsbusDevice *d, HDEVINFO devInfo, PSP_DEVINFO_D
 }
 
 
-static HANDLE getDeviceHandle(HDEVINFO devInfo, PSP_DEVINFO_DATA devInfoData, const GUID *guid)
+static int getDevicePath(UsbusDevice *d, HDEVINFO devInfo, PSP_DEVINFO_DATA devInfoData, const GUID *guid)
 {
     /*
      * Retrieve and open a handle for the given device description, such that
@@ -247,7 +293,7 @@ static HANDLE getDeviceHandle(HDEVINFO devInfo, PSP_DEVINFO_DATA devInfoData, co
     devInterfaceData.cbSize = sizeof(SP_INTERFACE_DEVICE_DATA);
     if (!SetupDiEnumDeviceInterfaces(devInfo, devInfoData, guid, 0, &devInterfaceData)) {
         logerror("SetupDiEnumDeviceInterfaces: %s", win32ErrorString(GetLastError()));
-        return INVALID_HANDLE_VALUE;
+        return -1;
     }
 
     /*
@@ -261,14 +307,14 @@ static HANDLE getDeviceHandle(HDEVINFO devInfo, PSP_DEVINFO_DATA devInfoData, co
                                     &requiredLength, NULL);
     if (ERROR_INSUFFICIENT_BUFFER != GetLastError() || requiredLength <= 0) {
         logerror("SetupDiGetDeviceInterfaceDetail: %s", win32ErrorString(GetLastError()));
-        return INVALID_HANDLE_VALUE;
+        return -1;
     }
 
     PSP_DEVICE_INTERFACE_DETAIL_DATA interfaceDetailData;
     interfaceDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA)LocalAlloc(LPTR, requiredLength);
     if (!interfaceDetailData) {
         logerror("Error allocating memory for the device detail buffer.");
-        return INVALID_HANDLE_VALUE;
+        return -1;
     }
 
     // this time for real
@@ -280,19 +326,37 @@ static HANDLE getDeviceHandle(HDEVINFO devInfo, PSP_DEVINFO_DATA devInfoData, co
     {
         logerror("SetupDiGetDeviceInterfaceDetail: %s", win32ErrorString(GetLastError()));
         LocalFree(interfaceDetailData);
-        return INVALID_HANDLE_VALUE;
+        return -1;
     }
 
-    HANDLE h = CreateFile(interfaceDetailData->DevicePath,
-                          GENERIC_READ | GENERIC_WRITE,
-                          FILE_SHARE_READ | FILE_SHARE_WRITE,
-                          NULL,
-                          OPEN_EXISTING,
-                          FILE_FLAG_OVERLAPPED,
-                          NULL);
-
+    strncpy(d->winusb.path, interfaceDetailData->DevicePath, strlen(interfaceDetailData->DevicePath));
     LocalFree(interfaceDetailData);
-    return h;
+
+    return UsbusOK;
+}
+
+
+static int getDeviceSpeed(UsbusDevice *d, WINUSB_INTERFACE_HANDLE h)
+{
+    UCHAR speed;
+    ULONG length = sizeof(speed);
+    if (!WinUsb_QueryDeviceInformation(h, DEVICE_SPEED, &length, &speed)) {
+        logdebug("WinUsb_QueryDeviceInformation: %s", win32ErrorString(GetLastError()));
+        return -1;
+    }
+
+    /*
+     * MSDN says: If InformationType is DEVICE_SPEED, on successful return,
+     * Buffer indicates the operating speed of the device. 0x03 indicates
+     * high-speed or higher; 0x01 indicates full-speed or lower.
+     */
+    switch (speed) {
+    case 0x03:  d->speed = UsbusHighSpeed; break;
+    case 0x01:  d->speed = UsbusFullSpeed; break;
+    default:    logdebug("unknown speed: %d", speed); break;
+    }
+
+    return UsbusOK;
 }
 
 
@@ -335,7 +399,7 @@ static int getDeviceProperty(HDEVINFO devInfo, PSP_DEVINFO_DATA devData, DWORD p
     }
 
     if (!SetupDiGetDeviceRegistryProperty(devInfo, devData, property, NULL, *buf, *sz, NULL)) {
-        //        free(*buf);
+        free(*buf);
         logerror("SetupDiGetDeviceRegistryProperty 2 failed: %s", win32ErrorString(GetLastError()));
         return -1;
     }
