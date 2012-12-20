@@ -1,5 +1,5 @@
 
-#include "iokit.h"
+#include "platform/iokit.h"
 #include "usbus.h"
 #include "usbus_private.h"
 #include "logger.h"
@@ -137,16 +137,7 @@ static void deviceDiscoveredCallback(void *p, io_iterator_t iterator)
 
         if (getDeviceInterface(io, &d->iokit.dev)) {
             populateDeviceDetails(d);
-
-            /*
-             *
-             */
-            uint8_t dispose = true;
-            d->ctx = ctx;
-            ctx->connected(d, &dispose);
-            if (dispose) {
-                usbusDispose(d);
-            }
+            dispatchConnectedDevice(ctx, d);
         }
 
         IOObjectRelease(io);
