@@ -177,15 +177,11 @@ static void enumerateConnectedDevices(UsbusContext *ctx, const GUID *guid)
 
     for (i = 0; SetupDiEnumDeviceInfo(devInfo, i, &devInfoData); i++) {
 
-        UsbusDevice *d = malloc(sizeof(UsbusDevice));
-        if (!d) {
-            logerror("failed to malloc device\n");
-            return;
-        }
-        memset(d, 0, sizeof *d);
-
-        if (populateDeviceDetails(d, devInfo, &devInfoData, guid) == UsbusOK) {
-            dispatchConnectedDevice(ctx, d);
+        UsbusDevice *d = allocateDevice();
+        if (d) {
+            if (populateDeviceDetails(d, devInfo, &devInfoData, guid) == UsbusOK) {
+                dispatchConnectedDevice(ctx, d);
+            }
         }
     }
 

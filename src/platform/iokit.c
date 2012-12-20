@@ -129,17 +129,13 @@ static void deviceDiscoveredCallback(void *p, io_iterator_t iterator)
     io_object_t io;
     while ((io = IOIteratorNext(iterator))) {
 
-        UsbusDevice *d = malloc(sizeof(UsbusDevice));
-        if (!d) {
-            logerror("failed to malloc device\n");
-            return;
+        UsbusDevice *d = allocateDevice();
+        if (d) {
+            if (getDeviceInterface(io, &d->iokit.dev)) {
+                populateDeviceDetails(d);
+                dispatchConnectedDevice(ctx, d);
+            }
         }
-
-        if (getDeviceInterface(io, &d->iokit.dev)) {
-            populateDeviceDetails(d);
-            dispatchConnectedDevice(ctx, d);
-        }
-
         IOObjectRelease(io);
     }
 }
