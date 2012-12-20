@@ -1,13 +1,13 @@
 
 solution "usbus"
     configurations { "Debug", "Release" }
-    
+
     project "usbus"
         kind "StaticLib"
         language "C"
 
         files "src/*.c"
-        includedirs { "src", "src/platform" }
+        includedirs { "src" }
 
         if os.is("macosx") then
             defines { "PLATFORM_OSX" }
@@ -20,7 +20,7 @@ solution "usbus"
         configuration "Debug"
             defines { "DEBUG" }
             flags { "Symbols" }
- 
+
         configuration "Release"
             defines { "RELEASE" }
             flags { "Optimize" }
@@ -31,8 +31,9 @@ solution "usbus"
 
         files { "example/enumerator/*.c" }
         includedirs { "src" }
+        links { "usbus" }
         if os.is("macosx") then
-            links { "usbus", "IOKit.framework", "Carbon.framework" }
+            links { "IOKit.framework", "Carbon.framework" }
         elseif os.is("windows") then
-            links {}
+            links { "setupapi", "winusb" }
         end
