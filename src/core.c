@@ -90,6 +90,17 @@ int usbusSetConfiguration(UsbusDevice *d, uint8_t config)
  *  Internal Routines/Helpers
  ********************************/
 
+UsbusDevice *allocateDevice()
+{
+    UsbusDevice *d = malloc(sizeof(UsbusDevice));
+    if (!d) {
+        logerror("failed to malloc device");
+        return 0;
+    }
+    memset(d, 0, sizeof *d);
+    return d;
+}
+
 void dispatchConnectedDevice(UsbusContext *ctx, UsbusDevice *d)
 {
     uint8_t dispose = 1;
