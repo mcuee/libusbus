@@ -1,7 +1,10 @@
 
 #include "usbus.h"
 #include "usbus_private.h"
+#include "logger.h"
+
 #include <stdlib.h>
+#include <string.h>
 
 #if defined(PLATFORM_OSX)
     const struct UsbusPlatform * const gPlatform = &platformIOKit;
