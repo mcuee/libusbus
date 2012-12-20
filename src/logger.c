@@ -36,7 +36,7 @@ void logwarn(const char * fmt, ...)
     va_list ap;
     va_start(ap, fmt);
 
-    fprintf(stderr, "  [WARNING] ");
+    fprintf(stderr, "  [WARN] ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
 
@@ -52,7 +52,7 @@ void logerror(const char * fmt, ...)
     va_list ap;
     va_start(ap, fmt);
 
-    fprintf(stderr, "  [FATAL] ");
+    fprintf(stderr, "  [ERR] ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
 
