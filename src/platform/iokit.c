@@ -45,7 +45,7 @@ static const char* iokit_sterror(IOReturn ret)
 
 static void populateDeviceDetails(UsbusDevice *device)
 {
-    IOUSBDeviceInterface320** dev = device->iokit.dev;
+    IOUSBDeviceInterface_t** dev = device->iokit.dev;
 
     /*
      * Capture all the info we can about this device and populate the given UsbusDevice.
@@ -84,7 +84,7 @@ static void populateDeviceDetails(UsbusDevice *device)
 }
 
 
-static bool getDeviceInterface(io_object_t iodev, IOUSBDeviceInterface320*** devInterfaceOut)
+static bool getDeviceInterface(io_object_t iodev, IOUSBDeviceInterface_t*** devInterfaceOut)
 {
     /*
      * Given an io_object, retrieve the device interface that allows us to actually
@@ -244,7 +244,7 @@ void iokitStopListen(struct UsbusContext *ctx)
 
 int iokitOpen(struct UsbusDevice *device)
 {
-    IOUSBDeviceInterface320** dev = device->iokit.dev;
+    IOUSBDeviceInterface_t** dev = device->iokit.dev;
 
     IOReturn ret = (*dev)->USBDeviceOpen(dev);
     if (ret != kIOReturnSuccess) {
@@ -259,7 +259,7 @@ int iokitOpen(struct UsbusDevice *device)
 
 void iokitClose(struct UsbusDevice *device)
 {
-    IOUSBDeviceInterface320** dev = device->iokit.dev;
+    IOUSBDeviceInterface_t** dev = device->iokit.dev;
 
     (*dev)->USBDeviceClose(dev);
     (*dev)->Release(dev);
@@ -268,18 +268,18 @@ void iokitClose(struct UsbusDevice *device)
 
 int iokitGetConfiguration(UsbusDevice *device, uint8_t *config)
 {
-    IOUSBDeviceInterface320** dev = device->iokit.dev;
+    IOUSBDeviceInterface_t** dev = device->iokit.dev;
 
     IOReturn ret = (*dev)->GetConfiguration(dev, config);
     if (ret != kIOReturnSuccess) {
-        logdebug("Couldn’t get configuration, %08x (%s)\n", ret, iokit_sterror(ret));
+        logdebug("Couldn’t get configuration, %08x (%s)", ret, iokit_sterror(ret));
         return -1;
     }
 
     IOUSBConfigurationDescriptorPtr configDesc;
     ret = (*dev)->GetConfigurationDescriptorPtr(dev, *config, &configDesc);
     if (ret != kIOReturnSuccess) {
-        logdebug("Couldn’t get configuration descriptor for index %d,  %08x (%s)\n", *config, ret, iokit_sterror(ret));
+        logdebug("Couldn’t get configuration descriptor for index %d,  %08x (%s)", *config, ret, iokit_sterror(ret));
         return -1;
     }
 
@@ -288,7 +288,7 @@ int iokitGetConfiguration(UsbusDevice *device, uint8_t *config)
 
 int iokitSetConfiguration(UsbusDevice *device, uint8_t config)
 {
-    IOUSBDeviceInterface320** dev = device->iokit.dev;
+    IOUSBDeviceInterface_t** dev = device->iokit.dev;
 
     IOReturn ret = (*dev)->SetConfiguration(dev, config);
     if (ret != kIOReturnSuccess) {

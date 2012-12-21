@@ -4,9 +4,17 @@
 #include "usbus.h"
 #include <IOKit/usb/IOUSBLib.h>
 
+#ifndef kIOUSBInterfaceInterfaceID197
+#error libusbus requires at least OS X 10.2.5
+#endif
+
 #ifndef kIOUSBDeviceInterfaceID320
 #error libusbus requires at least OS X 10.5.4
 #endif
+
+// lock the versions that we plan on using
+typedef IOUSBDeviceInterface320 IOUSBDeviceInterface_t;
+typedef IOUSBInterfaceInterface197 IOUSBInterfaceInterface_t;
 
 // iokit-specific potion of UsbusContext
 struct IOKitContext {
@@ -15,8 +23,8 @@ struct IOKitContext {
 
 // iokit-specific potion of UsbusDevice
 struct IOKitDevice {
-//    IOUSBDeviceDescriptor descriptor;
-    IOUSBDeviceInterface320 **dev;
+    IOUSBDeviceInterface_t **dev;
+    IOUSBInterfaceInterface_t **intf;
 };
 
 extern const struct UsbusPlatform platformIOKit;
