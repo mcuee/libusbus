@@ -51,6 +51,8 @@ struct UsbusPlatform {
     int (*listen)(UsbusContext *ctx);
     void (*stopListen)(UsbusContext *ctx);
 
+    int (*getStringDescriptor)(UsbusDevice *d, uint8_t index, uint16_t lang, uint8_t *buf, unsigned len, unsigned *transferred);
+
     int (*open)(UsbusDevice *dev);
     void (*close)(UsbusDevice *dev);
 

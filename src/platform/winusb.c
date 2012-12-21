@@ -29,6 +29,7 @@ const struct UsbusPlatform platformWinUSB = {
     "WinUSB",
     winusbListen,
     winusbStopListen,
+    winusbGetStringDescriptor,
     winusbOpen,
     winusbClose,
     winusbGetConfiguration,
@@ -98,6 +99,25 @@ void winusbStopListen(UsbusContext *ctx)
         winusbCtx->hDevNotify = 0;
     }
 }
+
+
+int winusbGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang, uint8_t *buf, unsigned len, unsigned *transferred)
+{
+    struct WinUSBDevice *wd = &d->winusb;
+
+    ULONG sz;
+    if (!WinUsb_GetDescriptor(wd->winusbHandle, USB_STRING_DESCRIPTOR_TYPE,
+                              index, lang, buf, len, &sz))
+    {
+        logdebug("winusbGetStringDescriptor() WinUsb_GetDescriptor: %s",
+                 win32ErrorString(GetLastError()));
+        return -1;
+    }
+
+    *transferred = sz;
+    return UsbusOK;
+}
+
 
 int winusbOpen(UsbusDevice *device)
 {

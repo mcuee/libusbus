@@ -36,17 +36,6 @@ void usbusStopListen(struct UsbusContext *ctx)
     gPlatform->stopListen(c);
 }
 
-void usbusGetDeviceDetails(UsbusDevice *dev, struct UsbusDeviceDetails *details)
-{
-    details->productId          = dev->descriptor.idProduct;
-    details->vendorId           = dev->descriptor.idVendor;
-    details->releaseNumber      = dev->descriptor.bcdUSB;
-    details->busNumber          = dev->busNumber;
-    details->address            = dev->address;
-    details->numConfigurations  = dev->descriptor.bNumConfigurations;
-    details->speed              = dev->speed;
-}
-
 int usbusOpen(UsbusDevice *d)
 {
     // already open?

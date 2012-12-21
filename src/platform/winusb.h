@@ -28,6 +28,9 @@ extern const struct UsbusPlatform platformWinUSB;
 int winusbListen(UsbusContext *ctx);
 void winusbStopListen(UsbusContext *ctx);
 
+int winusbGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang,
+                              uint8_t *buf, unsigned len, unsigned *transferred);
+
 int winusbOpen(UsbusDevice *device);
 void winusbClose(UsbusDevice *device);
 

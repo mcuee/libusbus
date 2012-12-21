@@ -64,28 +64,13 @@ typedef struct UsbusContext UsbusContext;
 struct UsbusDevice;
 typedef struct UsbusDevice UsbusDevice;
 
-// forward decl for UsbusTransferCallback
+// forward decls
 struct UsbusTransfer;
+struct UsbusDeviceDescriptor;
 
 typedef void (*UsbusDeviceConnectedCallback)(UsbusDevice *d, uint8_t *dispose);
 typedef void (*UsbusDeviceDisconnectedCallback)(UsbusDevice *d);
 typedef void (*UsbusTransferCallback)(struct UsbusTransfer *t, enum UsbusStatus s);
-
-/*
- * Subset of a device descriptor, containing only fields that
- * we can retrieve without actually opening a device.
- *
- * XXX: ensure these elements are accessible on all platforms without opening the device
- */
-struct UsbusDeviceDetails {
-    uint16_t productId;
-    uint16_t vendorId;
-    uint16_t releaseNumber;
-    uint8_t  busNumber;
-    uint8_t  address;
-    uint8_t  numConfigurations;
-    enum UsbusSpeed speed;
-};
 
 struct UsbusTransfer {
     UsbusDevice *device;
@@ -113,7 +98,11 @@ int usbusListen(UsbusContext *ctx,
 
 void usbusStopListen(UsbusContext *ctx);
 
-void usbusGetDeviceDetails(UsbusDevice *dev, struct UsbusDeviceDetails *details);
+void usbusGetDescriptor(UsbusDevice *dev, struct UsbusDeviceDescriptor *desc);
+int usbusGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang,
+                             uint8_t *buf, unsigned len, unsigned *transferred);
+int usbusGetStringDescriptorAscii(UsbusDevice *d, uint8_t index, uint16_t lang,
+                                  char *buf, unsigned len, unsigned *transferred);
 
 int  usbusOpen(UsbusDevice *d);
 void usbusClose(UsbusDevice *d);
