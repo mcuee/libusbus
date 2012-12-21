@@ -2,6 +2,8 @@
 #include "usbus.h"
 #include "usbus_private.h"
 
+#include <string.h>
+
 void usbusGetDescriptor(UsbusDevice *dev, struct UsbusDeviceDescriptor *desc)
 {
     memcpy(desc, &dev->descriptor, sizeof(*desc));
