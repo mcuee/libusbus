@@ -44,6 +44,19 @@ enum UsbusTransferType {
     UsbusTransferInterrupt
 };
 
+enum UsbusDescriptorType {
+    UsbusDescriptorDevice           = 0x01,
+    UsbusDescriptorConfig           = 0x02,
+    UsbusDescriptorString           = 0x03,
+    UsbusDescriptorInterface        = 0x04,
+    UsbusDescriptorEndpoint         = 0x05,
+    UsbusDescriptorHID              = 0x21,
+    UsbusDescriptorReport           = 0x22,
+    UsbusDescriptorPhysical         = 0x23,
+    UsbusDescriptorHub              = 0x29,
+    UsbusDescriptorSuperSpeedHub    = 0x2A
+};
+
 // opaque types
 struct UsbusContext;
 typedef struct UsbusContext UsbusContext;
