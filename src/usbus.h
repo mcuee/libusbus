@@ -111,8 +111,18 @@ void usbusDispose(UsbusDevice *d);
 int usbusGetConfiguration(UsbusDevice *d, uint8_t *config);
 int usbusSetConfiguration(UsbusDevice *d, uint8_t config);
 
+// synchronous I/O
 int usbusReadSync(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsigned *written);
 int usbusWriteSync(UsbusDevice *d, uint8_t ep, const uint8_t *buf, unsigned len, unsigned *written);
+
+// async I/O
+int usbusSubmitTransfer(struct UsbusTransfer *t);
+int usbusCancelTransfer(struct UsbusTransfer *t);
+int usbusProcessEvents(UsbusContext *ctx, unsigned timeoutMillis);
+
+static inline int usbusTransferIsIN(const struct UsbusTransfer *t) {
+    return (t->endpoint & 0x80);
+}
 
 /*******************************
     Standard USB Definitions

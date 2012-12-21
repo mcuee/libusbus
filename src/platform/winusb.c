@@ -34,6 +34,9 @@ const struct UsbusPlatform platformWinUSB = {
     winusbClose,
     winusbGetConfiguration,
     winusbSetConfiguration,
+    winusbSubmitTransfer,
+    winusbCancelTransfer,
+    winusbProcessEvents,
     winusbReadSync,
     winusbWriteSync
 };
@@ -119,13 +122,14 @@ int winusbGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang, uint
 }
 
 
-int winusbOpen(UsbusDevice *device)
+int winusbOpen(UsbusDevice *d)
 {
     /*
      * Platform specific implementation of usbusOpen()
      */
 
-    struct WinUSBDevice *wd = &device->winusb;
+    struct WinUSBDevice *wd = &d->winusb;
+    struct WinUSBContext *wc = &d->ctx->winusb;
 
     wd->deviceHandle = CreateFile(wd->path,
                                   GENERIC_READ | GENERIC_WRITE,
@@ -145,12 +149,29 @@ int winusbOpen(UsbusDevice *device)
         return -1;
     }
 
+    /*
+     * Add this handle to our completion port.
+     * If the completion port hasn't been created yet, do it now.
+     */
+    if (wc->completionPort == NULL) {
+        wc->completionPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+        if (wc->completionPort == NULL) {
+            logwarn("CreateIoCompletionPort() context: %s", win32ErrorString(GetLastError()));
+            return -1;
+        }
+    }
+
+    if (CreateIoCompletionPort(wd->deviceHandle, wc->completionPort, 0, 0) == NULL) {
+        logwarn("CreateIoCompletionPort() device: %s", win32ErrorString(GetLastError()));
+        return -1;
+    }
+
     return UsbusOK;
 }
 
-void winusbClose(UsbusDevice *device)
+void winusbClose(UsbusDevice *d)
 {
-    struct WinUSBDevice *wd = &device->winusb;
+    struct WinUSBDevice *wd = &d->winusb;
 
     if (wd->deviceHandle != INVALID_HANDLE_VALUE) {
         CloseHandle(wd->deviceHandle);
@@ -171,6 +192,76 @@ int winusbGetConfiguration(UsbusDevice *device, uint8_t *config)
 int winusbSetConfiguration(UsbusDevice *device, uint8_t config)
 {
     return UsbusErrUnknown;
+}
+
+
+int winusbSubmitTransfer(struct UsbusTransfer *t)
+{
+    struct WinUSBDevice *wd = &t->device->winusb;
+    struct WinOverlappedTransfer *wot;
+
+    wot = malloc(sizeof(*wot));
+    if (!wot) {
+        logwarn("winusbSubmitTransfer(): failed to allocate WinOverlappedTransfer");
+        return -1;
+    }
+    memset(&wot->ov, 0, sizeof(wot->ov));
+    wot->t = t;
+
+    if (usbusTransferIsIN(t)) {
+
+        if (!WinUsb_ReadPipe(wd->winusbHandle, t->endpoint, t->buffer, t->requestedLength, 0, &wot->ov)) {
+            logdebug("winusbReadSync() WinUsb_ReadPipe: %s", win32ErrorString(GetLastError()));
+            return -1;
+        }
+
+    } else {
+
+        if (!WinUsb_WritePipe(wd->winusbHandle, t->endpoint, t->buffer, t->requestedLength, 0, &wot->ov)) {
+            logdebug("winusbReadSync() WinUsb_WritePipe: %s", win32ErrorString(GetLastError()));
+            return -1;
+        }
+    }
+
+    return UsbusOK;
+}
+
+
+int winusbCancelTransfer(struct UsbusTransfer *t)
+{
+    struct WinUSBDevice *wd = &t->device->winusb;
+
+    if (!WinUsb_AbortPipe(wd->winusbHandle, t->endpoint)) {
+        logdebug("winusbCancelTransfer() WinUsb_AbortPipe: %s", win32ErrorString(GetLastError()));
+        return -1;
+    }
+
+    return UsbusOK;
+}
+
+
+int winusbProcessEvents(UsbusContext *ctx, unsigned timeoutMillis)
+{
+    struct WinUSBContext *wc = &ctx->winusb;
+
+    OVERLAPPED* ov;
+    DWORD transferred;
+    ULONG_PTR completionKey;
+
+    if (!GetQueuedCompletionStatus(wc->completionPort, &transferred, &completionKey, &ov, timeoutMillis)) {
+        logwarn("winusbProcessEvents() GetQueuedCompletionStatus: %s", win32ErrorString(GetLastError()));
+        return -1;
+    }
+
+    struct WinOverlappedTransfer* wot = (struct WinOverlappedTransfer*)ov;
+    struct UsbusTransfer *t = wot->t;
+    t->transferredlength = transferred;
+    if (t->callback) {
+        t->callback(t, UsbusOK);
+    }
+
+    free(wot);
+    return UsbusOK;
 }
 
 

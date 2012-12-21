@@ -59,6 +59,10 @@ struct UsbusPlatform {
     int (*getConfiguration)(UsbusDevice *device, uint8_t *config);
     int (*setConfiguration)(UsbusDevice *device, uint8_t config);
 
+    int (*submitTransfer)(struct UsbusTransfer *t);
+    int (*cancelTransfer)(struct UsbusTransfer *t);
+    int (*processEvents)(UsbusContext *ctx, unsigned timeoutMillis);
+
     int (*readSync)(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsigned *written);
     int (*writeSync)(UsbusDevice *d, uint8_t ep, const uint8_t *buf, unsigned len, unsigned *written);
 };
