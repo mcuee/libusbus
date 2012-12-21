@@ -38,6 +38,9 @@ void iokitClose(UsbusDevice *device);
 int iokitGetConfiguration(UsbusDevice *device, uint8_t *config);
 int iokitSetConfiguration(UsbusDevice *device, uint8_t config);
 
+int iokitReadSync(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsigned *written);
+int iokitWriteSync(UsbusDevice *d, uint8_t ep, const uint8_t *buf, unsigned len, unsigned *written);
+
 int iokitWritePipe();
 int iokitReadPipe();
 int iokitCancelPipe();

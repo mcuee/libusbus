@@ -297,3 +297,31 @@ int iokitSetConfiguration(UsbusDevice *device, uint8_t config)
     }
     return UsbusOK;
 }
+
+int iokitReadSync(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsigned *written)
+{
+    IOUSBInterfaceInterface_t **intf = d->iokit.intf;
+
+    IOReturn ret = (*intf)->ReadPipe(intf, ep, buf, &len);
+    if (ret != kIOReturnSuccess) {
+        logdebug("ReadPipe, err = %08x", ret);
+        return -1;
+    }
+
+    *written = len;
+    return UsbusOK;
+}
+
+int iokitWriteSync(UsbusDevice *d, uint8_t ep, const uint8_t *buf, unsigned len, unsigned *written)
+{
+    IOUSBInterfaceInterface_t **intf = d->iokit.intf;
+
+    IOReturn ret = (*intf)->WritePipe(intf, ep, (uint8_t*)buf, len);
+    if (ret != kIOReturnSuccess) {
+        logdebug("WritePipe, err = %08x", ret);
+        return -1;
+    }
+
+    *written = len;
+    return UsbusOK;
+}
