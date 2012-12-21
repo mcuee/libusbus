@@ -36,6 +36,13 @@ enum UsbusLogLevel {
     UsbusLogInfo
 };
 
+enum UsbusTransferType {
+    UsbusTransferControl,
+    UsbusTransferIsochronous,
+    UsbusTransferBulk,
+    UsbusTransferInterrupt
+};
+
 // opaque types
 struct UsbusContext;
 typedef struct UsbusContext UsbusContext;
@@ -70,7 +77,7 @@ struct UsbusTransfer {
     UsbusDevice *device;
     uint8_t flags;
     unsigned char endpoint;
-    unsigned char type;
+    enum UsbusTransferType type;
     unsigned int timeout;
     enum UsbusStatus status;
     int requestedLength;
