@@ -32,7 +32,9 @@ const struct UsbusPlatform platformWinUSB = {
     winusbOpen,
     winusbClose,
     winusbGetConfiguration,
-    winusbSetConfiguration
+    winusbSetConfiguration,
+    winusbReadSync,
+    winusbWriteSync
 };
 
 static char *win32ErrorString(uint32_t errorCode);
@@ -149,6 +151,36 @@ int winusbGetConfiguration(UsbusDevice *device, uint8_t *config)
 int winusbSetConfiguration(UsbusDevice *device, uint8_t config)
 {
     return UsbusErrUnknown;
+}
+
+
+int winusbReadSync(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsigned *written)
+{
+    struct WinUSBDevice *wd = &d->winusb;
+
+    ULONG transferred = 0;
+    if (!WinUsb_ReadPipe(wd->winusbHandle, ep, (PUCHAR)buf, len, &transferred, 0)) {
+        logdebug("winusbReadSync() WinUsb_ReadPipe: %s", win32ErrorString(GetLastError()));
+        return -1;
+    }
+
+    *written = transferred;
+    return UsbusOK;
+}
+
+
+int winusbWriteSync(UsbusDevice *d, uint8_t ep, const uint8_t *buf, unsigned len, unsigned *written)
+{
+    struct WinUSBDevice *wd = &d->winusb;
+
+    ULONG transferred = 0;
+    if (!WinUsb_WritePipe(wd->winusbHandle, ep, (PUCHAR)buf, len, &transferred, 0)) {
+        logdebug("winusbWriteSync() WinUsb_WritePipe: %s", win32ErrorString(GetLastError()));
+        return -1;
+    }
+
+    *written = transferred;
+    return UsbusOK;
 }
 
 

@@ -34,4 +34,7 @@ void winusbClose(UsbusDevice *device);
 int winusbGetConfiguration(UsbusDevice *device, uint8_t *config);
 int winusbSetConfiguration(UsbusDevice *device, uint8_t config);
 
+int winusbReadSync(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsigned *written);
+int winusbWriteSync(UsbusDevice *d, uint8_t ep, const uint8_t *buf, unsigned len, unsigned *written);
+
 #endif // WINUSB_H

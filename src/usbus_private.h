@@ -56,8 +56,12 @@ struct UsbusPlatform {
 
     int (*getConfiguration)(UsbusDevice *device, uint8_t *config);
     int (*setConfiguration)(UsbusDevice *device, uint8_t config);
+
+    int (*readSync)(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsigned *written);
+    int (*writeSync)(UsbusDevice *d, uint8_t ep, const uint8_t *buf, unsigned len, unsigned *written);
 };
 
+extern const struct UsbusPlatform *const gPlatform;
 
 /**************************************************************
  * Internal Routines/Helpers

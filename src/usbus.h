@@ -14,6 +14,7 @@ extern "C" {
 enum UsbusError {
     UsbusOK         = 0,
     UsbusIoErr      = 1,
+    UsbusNotOpen    = 2,
     UsbusErrUnknown
 };
 
@@ -108,6 +109,8 @@ void usbusDispose(UsbusDevice *d);
 int usbusGetConfiguration(UsbusDevice *d, uint8_t *config);
 int usbusSetConfiguration(UsbusDevice *d, uint8_t config);
 
+int usbusReadSync(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsigned *written);
+int usbusWriteSync(UsbusDevice *d, uint8_t ep, const uint8_t *buf, unsigned len, unsigned *written);
 
 /*******************************
     Standard USB Definitions
