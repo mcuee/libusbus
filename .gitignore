@@ -2,3 +2,7 @@
 *.d
 *.o
 *.a
+
+# generated build files should only be included in a release
+Makefile
+*.make
