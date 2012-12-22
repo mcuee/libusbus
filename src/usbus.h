@@ -19,7 +19,12 @@ enum UsbusError {
 };
 
 enum UsbusStatus {
-    UsbusComplete = 0,
+    UsbusComplete,
+    UsbusCanceled,
+    UsbusStalled,
+    UsbusOverflow,
+    UsbusTimeout,
+    UsbusStatusGenericError
 };
 
 enum UsbusSpeed {
