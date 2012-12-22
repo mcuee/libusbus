@@ -11,21 +11,19 @@ static void onDeviceConnected(struct UsbusDevice *d, uint8_t* dispose)
     printf("connect: vid 0x%x, pid 0x%x\n", desc.idVendor, desc.idProduct);
 
     if (usbusOpen(d) == UsbusOK) {
-        uint8_t config;
 
-        char str[256];
-        unsigned len;
-        if (usbusGetStringDescriptorAscii(d, desc.iProduct, 0, str, sizeof str, &len) == UsbusOK) {
-            printf("product: %s\n", str);
+        if (usbusClaimInterface(d, 0) == UsbusOK) {
+            char str[256];
+            unsigned len;
+            if (usbusGetStringDescriptorAscii(d, desc.iProduct, 0, str, sizeof str, &len) == UsbusOK) {
+                printf("product: %s\n", str);
+            }
+
+            if (usbusGetStringDescriptorAscii(d, desc.iManufacturer, 0, str, sizeof str, &len) == UsbusOK) {
+                printf("mfgr: %s\n", str);
+            }
         }
 
-        if (usbusGetStringDescriptorAscii(d, desc.iManufacturer, 0, str, sizeof str, &len) == UsbusOK) {
-            printf("mfgr: %s\n", str);
-        }
-
-        if (usbusGetConfiguration(d, &config) == UsbusOK) {
-            printf("configuration value: 0x%x\n", config);
-        }
         usbusClose(d);
     }
 }
