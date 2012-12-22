@@ -56,6 +56,9 @@ struct UsbusPlatform {
     int (*open)(UsbusDevice *dev);
     void (*close)(UsbusDevice *dev);
 
+    int (*claimInterface)(UsbusDevice *d, unsigned index);
+    int (*releaseInterface)(UsbusDevice *d, unsigned index);
+
     int (*getConfiguration)(UsbusDevice *device, uint8_t *config);
     int (*setConfiguration)(UsbusDevice *device, uint8_t config);
 

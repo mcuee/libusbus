@@ -10,10 +10,18 @@ const struct UsbusPlatform platformIOKit = {
     "IOKit",
     iokitListen,
     iokitStopListen,
+    iokitGetStringDescriptor,
     iokitOpen,
     iokitClose,
+    iokitClaimInterface,
+    iokitReleaseInterface,
     iokitGetConfiguration,
-    iokitSetConfiguration
+    iokitSetConfiguration,
+    iokitSubmitTransfer,
+    iokitCancelTransfer,
+    iokitProcessEvents,
+    iokitReadSync,
+    iokitWriteSync
 };
 
 /************************************************
@@ -164,6 +172,40 @@ static void deviceTerminatedCallback(void *p, io_iterator_t iterator)
     }
 }
 
+
+static int getInterface(IOUSBDeviceInterface_t **dev, uint8_t index, io_service_t *usbInterface)
+{
+    /*
+     * Look up the interface at the given index.
+     */
+
+    *usbInterface = IO_OBJECT_NULL;
+
+    IOUSBFindInterfaceRequest req;
+    req.bInterfaceClass    = kIOUSBFindInterfaceDontCare;
+    req.bInterfaceSubClass = kIOUSBFindInterfaceDontCare;
+    req.bInterfaceProtocol = kIOUSBFindInterfaceDontCare;
+    req.bAlternateSetting  = kIOUSBFindInterfaceDontCare;
+
+    io_iterator_t it;
+    IOReturn r = (*dev)->CreateInterfaceIterator(dev, &req, &it);
+    if (r != kIOReturnSuccess) {
+        return -1;
+    }
+
+    uint8_t i;
+    for (i = 0 ; i <= index ; ++i) {
+        *usbInterface = IOIteratorNext(it);
+        if (i != index) {
+            IOObjectRelease(*usbInterface);
+        }
+    }
+
+    IOObjectRelease(it);
+    return UsbusOK;
+}
+
+
 /************************************************
  *  API
  ************************************************/
@@ -171,7 +213,6 @@ static void deviceTerminatedCallback(void *p, io_iterator_t iterator)
 int iokitListen(UsbusContext *ctx)
 {
     kern_return_t kr;
-    CFRunLoopSourceRef notificationRunLoopSource;
     io_iterator_t portIterator;
 
     struct IOKitContext *iokitCtx = &ctx->iokit;
@@ -182,13 +223,11 @@ int iokitListen(UsbusContext *ctx)
         return -1;
     }
 
-    notificationRunLoopSource = IONotificationPortGetRunLoopSource(iokitCtx->portRef);
-    if (notificationRunLoopSource == NULL) {
+    iokitCtx->notificationRunLoopSourceRef = IONotificationPortGetRunLoopSource(iokitCtx->portRef);
+    if (iokitCtx->notificationRunLoopSourceRef == NULL) {
         logerror("IONotificationPortGetRunLoopSource returned NULL CFRunLoopSourceRef.");
         return -1;
     }
-
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), notificationRunLoopSource, kCFRunLoopDefaultMode);
 
     // usb device matching
     CFMutableDictionaryRef classesToMatch = IOServiceMatching(kIOUSBDeviceClassName);
@@ -242,29 +281,165 @@ void iokitStopListen(struct UsbusContext *ctx)
     }
 }
 
-int iokitOpen(struct UsbusDevice *device)
-{
-    IOUSBDeviceInterface_t** dev = device->iokit.dev;
 
-    IOReturn ret = (*dev)->USBDeviceOpen(dev);
-    if (ret != kIOReturnSuccess) {
-        logdebug("Unable to open device: %08x (%s)\n", ret, iokit_sterror(ret));
-        (void) (*dev)->Release(dev);
-        device->isOpen = false;
+int iokitClaimInterface(UsbusDevice *d, unsigned index)
+{
+    /*
+     * Platform specific implementation of usbusClaimInterface().
+     * Typically called directly after opening the device.
+     */
+
+    IOUSBDeviceInterface_t **dev = d->iokit.dev;
+
+    io_service_t usbInterface;
+    if (getInterface(dev, index, &usbInterface) != UsbusOK) {
+        return -1;
+    }
+
+    if (!usbInterface) {
+        /*
+         * If there's no interface yet, set the default/first configuration
+         * and try again.
+         */
+
+        IOUSBConfigurationDescriptorPtr configDesc;
+        IOReturn r = (*dev)->GetConfigurationDescriptorPtr(dev, 0, &configDesc);
+        uint8_t config = (kIOReturnSuccess == r) ? configDesc->bConfigurationValue : 1;
+
+        if (iokitSetConfiguration(d, config) != UsbusOK) {
+            return -1;
+        }
+
+        if (getInterface(dev, index, &usbInterface) != UsbusOK) {
+            return -1;
+        }
+    }
+
+    IOReturn r;
+    SInt32 score;
+    IOCFPlugInInterface **plugin = NULL;
+    r = IOCreatePlugInInterfaceForService(usbInterface,
+                                          kIOUSBInterfaceUserClientTypeID,
+                                          kIOCFPlugInInterfaceID,
+                                          &plugin, &score);
+    r = IOObjectRelease(usbInterface);
+    if ((r != kIOReturnSuccess) || !plugin) {
+        logdebug("Unable to create an interface plug-in: %08x (%s)", r, iokit_sterror(r));
+        return -1;
+    }
+
+
+    //Now create the device interface for the interface
+    HRESULT result = (*plugin)->QueryInterface(plugin,
+                                               CFUUIDGetUUIDBytes(kIOUSBInterfaceInterfaceID197),
+                                               (LPVOID*)&d->iokit.intf);
+    //No longer need the intermediate plug-in
+    (*plugin)->Release(plugin);
+    if (result || !d->iokit.intf) {
+        logdebug("Couldn’t create a device interface for the interface(%08x)", (int)result);
+        return -1;
+    }
+
+    /*
+     * Now open the interface. This will cause the pipes associated with
+     * the endpoints in the interface descriptor to be instantiated
+     */
+
+    IOUSBInterfaceInterface_t **intf = d->iokit.intf;
+    r = (*intf)->USBInterfaceOpen(intf);
+    if (r != kIOReturnSuccess) {
+        logdebug("iokitClaimInterface() USBInterfaceOpen: %08x (%s)", r, iokit_sterror(r));
+        (*intf)->Release(intf);
+        d->iokit.intf = 0;
         return -1;
     }
 
     return UsbusOK;
 }
 
-void iokitClose(struct UsbusDevice *device)
+
+int iokitReleaseInterface(UsbusDevice *d, unsigned index)
+{
+    IOUSBInterfaceInterface_t** intf = d->iokit.intf;
+
+    if (!intf) {
+        // not open? nop
+        return UsbusOK;
+    }
+
+    IOReturn r = (*intf)->USBInterfaceClose(intf);
+    (*intf)->Release(intf);
+    d->iokit.intf = 0;
+    if (r != kIOReturnSuccess) {
+        logerror("iokitReleaseInterface() USBInterfaceClose: %08x (%s)", r, iokit_sterror(r));
+        return -1;
+    }
+
+    return UsbusOK;
+}
+
+
+int iokitGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang,
+                              uint8_t *buf, unsigned len, unsigned *transferred)
+{
+    IOUSBDeviceInterface_t** dev = d->iokit.dev;
+
+    IOUSBDevRequest req;
+    req.bmRequestType = USBmakebmRequestType(kUSBIn, kUSBStandard, kUSBDevice);
+    req.bRequest = kUSBRqGetDescriptor;
+    req.wValue = (kUSBStringDesc << 8) | index;
+    req.wIndex = lang;
+    req.wLength = len;
+    req.pData = buf;
+
+    IOReturn r = (*dev)->DeviceRequest(dev, &req);
+    if (r != kIOReturnSuccess) {
+        logdebug("GetStringDescriptor reading string length returned error (0x%x) - retrying with max length", r);
+        return -1;
+    }
+
+    *transferred = req.wLenDone;
+   return UsbusOK;
+}
+
+
+int iokitOpen(struct UsbusDevice *device)
 {
     IOUSBDeviceInterface_t** dev = device->iokit.dev;
 
+    IOReturn ret = (*dev)->USBDeviceOpenSeize(dev);
+    if (ret != kIOReturnSuccess) {
+        logdebug("Unable to open device: %08x (%s)", ret, iokit_sterror(ret));
+        (void) (*dev)->Release(dev);
+        device->isOpen = false;
+        return -1;
+    }
+
+    ret = (*dev)->CreateDeviceAsyncEventSource(dev, &device->iokit.runLoopSourceRef);
+    if (ret != kIOReturnSuccess) {
+        logdebug("iokitOpen() CreateDeviceAsyncEventSource: %08x (%s)", ret, iokit_sterror(ret));
+        return -1;
+    }
+
+    return UsbusOK;
+}
+
+
+void iokitClose(struct UsbusDevice *device)
+{
+    // XXX: cache active interface
+    iokitReleaseInterface(device, 0);
+
+    IOUSBDeviceInterface_t** dev = device->iokit.dev;
     (*dev)->USBDeviceClose(dev);
     (*dev)->Release(dev);
     device->iokit.dev = 0;
+
+    struct IOKitDevice *id = &device->iokit;
+//    CFRunLoopRemoveSource(/* run loop ref */, id->runLoopSourceRef, kCFRunLoopDefaultMode);
+    CFRelease (id->runLoopSourceRef);
 }
+
 
 int iokitGetConfiguration(UsbusDevice *device, uint8_t *config)
 {
@@ -273,13 +448,6 @@ int iokitGetConfiguration(UsbusDevice *device, uint8_t *config)
     IOReturn ret = (*dev)->GetConfiguration(dev, config);
     if (ret != kIOReturnSuccess) {
         logdebug("Couldn’t get configuration, %08x (%s)", ret, iokit_sterror(ret));
-        return -1;
-    }
-
-    IOUSBConfigurationDescriptorPtr configDesc;
-    ret = (*dev)->GetConfigurationDescriptorPtr(dev, *config, &configDesc);
-    if (ret != kIOReturnSuccess) {
-        logdebug("Couldn’t get configuration descriptor for index %d,  %08x (%s)", *config, ret, iokit_sterror(ret));
         return -1;
     }
 
@@ -297,6 +465,31 @@ int iokitSetConfiguration(UsbusDevice *device, uint8_t config)
     }
     return UsbusOK;
 }
+
+
+int iokitSubmitTransfer(struct UsbusTransfer *t)
+{
+    return UsbusOK;
+}
+
+
+int iokitCancelTransfer(struct UsbusTransfer *t)
+{
+    return UsbusOK;
+}
+
+
+int iokitProcessEvents(UsbusContext *ctx, unsigned timeoutMillis)
+{
+    /*
+     * XXX: how best to associate a potentially arbitrary run loop here
+     * (depending on the context we're called in) with the sources of both
+     * the connect/disconnect notifier and any devices?
+     */
+
+    return UsbusOK;
+}
+
 
 int iokitReadSync(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsigned *written)
 {

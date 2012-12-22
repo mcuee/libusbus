@@ -106,6 +106,10 @@ int usbusGetStringDescriptorAscii(UsbusDevice *d, uint8_t index, uint16_t lang,
 
 int  usbusOpen(UsbusDevice *d);
 void usbusClose(UsbusDevice *d);
+
+int usbusClaimInterface(UsbusDevice *d, unsigned index);
+int usbusReleaseInterface(UsbusDevice *d, unsigned index);
+
 void usbusDispose(UsbusDevice *d);
 
 int usbusGetConfiguration(UsbusDevice *d, uint8_t *config);
