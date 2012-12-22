@@ -33,7 +33,7 @@ solution "usbus"
         includedirs { "src" }
         links { "usbus" }
         if os.is("macosx") then
-            links { "IOKit.framework", "Carbon.framework" }
+            links { "IOKit.framework", "CoreFoundation.framework" }
         elseif os.is("windows") then
             links { "setupapi", "winusb" }
         end
