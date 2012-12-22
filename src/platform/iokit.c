@@ -173,6 +173,54 @@ static void deviceTerminatedCallback(void *p, io_iterator_t iterator)
 }
 
 
+static void iokitAsyncIOCallback(void *refcon, IOReturn result, void *arg0)
+{
+    /*
+     * Called back from either WritePipeAsync or ReadPipeAsync upon
+     * completeion of a transfer.
+     *
+     * Collect the status and transferred length, and forward the callback
+     * if it's enabled.
+     */
+
+    struct UsbusTransfer *t = refcon;
+    t->transferredlength = (UInt32) arg0;
+
+    enum UsbusStatus status;
+
+    switch (result) {
+    case kIOReturnUnderrun:
+    case kIOReturnSuccess:
+        status = UsbusComplete;
+        break;
+
+    case kIOReturnAborted:
+        status = UsbusCanceled;
+        break;
+
+    case kIOUSBPipeStalled:
+        status = UsbusStalled;
+        break;
+
+    case kIOReturnOverrun:
+        status = UsbusOverflow;
+        break;
+
+    case kIOUSBTransactionTimeout:
+        status = UsbusTimeout;
+        break;
+
+    default:
+        status = UsbusStatusGenericError;
+        break;
+    }
+
+    if (t->callback) {
+        t->callback(t, status);
+    }
+}
+
+
 static int getInterface(IOUSBDeviceInterface_t **dev, uint8_t index, io_service_t *usbInterface)
 {
     /*
@@ -469,12 +517,46 @@ int iokitSetConfiguration(UsbusDevice *device, uint8_t config)
 
 int iokitSubmitTransfer(struct UsbusTransfer *t)
 {
+    IOReturn r;
+    IOUSBInterfaceInterface_t **intf = t->device->iokit.intf;
+
+    if (usbusTransferIsIN(t)) {
+
+        r = (*intf)->ReadPipeAsync(intf, t->endpoint, t->buffer, t->requestedLength, iokitAsyncIOCallback, t);
+        if (r != kIOReturnSuccess) {
+            logdebug("iokitSubmitTransfer() ReadPipeAsync: %08x", r);
+            return -1;
+        }
+
+    } else {
+
+        r = (*intf)->WritePipeAsync(intf, t->endpoint, t->buffer, t->requestedLength, iokitAsyncIOCallback, t);
+        if (r != kIOReturnSuccess) {
+            logdebug("iokitSubmitTransfer() WritePipeAsync: %08x", r);
+            return -1;
+        }
+    }
+
     return UsbusOK;
 }
 
 
 int iokitCancelTransfer(struct UsbusTransfer *t)
 {
+    /*
+     * Abort transactions and clear the data toggle bit to avoid losing any data.
+     * XXX: may need to look up pipe ref from endpoint value...
+     */
+
+    IOUSBInterfaceInterface_t **intf = t->device->iokit.intf;
+
+    IOReturn r1 = (*intf)->AbortPipe(intf, t->endpoint);
+    IOReturn r2 = (*intf)->ClearPipeStallBothEnds(intf, t->endpoint);
+    if (r1 != kIOReturnSuccess || r2 != kIOReturnSuccess) {
+        logerror("error canceling. abort %08x clearpipe %08x", r1, r2);
+        return -1;
+    }
+
     return UsbusOK;
 }
 
