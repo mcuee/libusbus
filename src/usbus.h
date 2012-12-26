@@ -8,6 +8,84 @@ extern "C" {
 #include <stdint.h>
 
 /*******************************
+    Standard USB Definitions
+*******************************/
+
+struct UsbusDeviceDescriptor {
+    uint8_t  bLength;
+    uint8_t  bDescriptorType;
+    uint16_t bcdUSB;
+    uint8_t  bDeviceClass;
+    uint8_t  bDeviceSubClass;
+    uint8_t  bDeviceProtocol;
+    uint8_t  bMaxPacketSize0;
+    uint16_t idVendor;
+    uint16_t idProduct;
+    uint16_t bcdDevice;
+    uint8_t  iManufacturer;
+    uint8_t  iProduct;
+    uint8_t  iSerialNumber;
+    uint8_t  bNumConfigurations;
+};
+
+struct UsbusEndpointDescriptor {
+    uint8_t  bLength;
+    uint8_t  bDescriptorType;
+    uint8_t  bEndpointAddress;
+    uint8_t  bmAttributes;
+    uint16_t wMaxPacketSize;
+    uint8_t  bInterval;
+    uint8_t  bRefresh;
+    uint8_t  bSynchAddress;
+    const unsigned char *extra;
+    int extra_length;
+};
+
+struct UsbusInterfaceDescriptor {
+    uint8_t  bLength;
+    uint8_t  bDescriptorType;
+    uint8_t  bInterfaceNumber;
+    uint8_t  bAlternateSetting;
+    uint8_t  bNumEndpoints;
+    uint8_t  bInterfaceClass;
+    uint8_t  bInterfaceSubClass;
+    uint8_t  bInterfaceProtocol;
+    uint8_t  iInterface;
+    // endpoint_t;
+    const unsigned char *extra;
+    int extra_length;
+};
+
+struct UsbusInterface {
+    //    interface_descriptor *altsetting;
+    int num_altsetting;
+};
+
+struct UsbusConfigDescriptor {
+    uint8_t  bLength;
+    uint8_t  bDescriptorType;
+    uint16_t wTotalLength;
+    uint8_t  bNumInterfaces;
+    uint8_t  bConfigurationValue;
+    uint8_t  iConfiguration;
+    uint8_t  bmAttributes;
+    uint8_t  MaxPower;
+    //    interface_t *interface;
+    const unsigned char *extra;
+    int extra_length;
+};
+
+struct UsbusControlSetup {
+    uint8_t  bmRequestType;
+    uint8_t  bRequest;
+    uint16_t wValue;
+    uint16_t wIndex;
+    uint16_t wLength;
+};
+
+
+
+/*******************************
     Public API
 *******************************/
 
@@ -15,6 +93,7 @@ enum UsbusError {
     UsbusOK         = 0,
     UsbusIoErr      = 1,
     UsbusNotOpen    = 2,
+    UsbusNotFound   = 3,
     UsbusErrUnknown
 };
 
@@ -132,82 +211,6 @@ int usbusProcessEvents(UsbusContext *ctx, unsigned timeoutMillis);
 static inline int usbusTransferIsIN(const struct UsbusTransfer *t) {
     return (t->endpoint & 0x80);
 }
-
-/*******************************
-    Standard USB Definitions
-*******************************/
-
-struct UsbusDeviceDescriptor {
-    uint8_t  bLength;
-    uint8_t  bDescriptorType;
-    uint16_t bcdUSB;
-    uint8_t  bDeviceClass;
-    uint8_t  bDeviceSubClass;
-    uint8_t  bDeviceProtocol;
-    uint8_t  bMaxPacketSize0;
-    uint16_t idVendor;
-    uint16_t idProduct;
-    uint16_t bcdDevice;
-    uint8_t  iManufacturer;
-    uint8_t  iProduct;
-    uint8_t  iSerialNumber;
-    uint8_t  bNumConfigurations;
-};
-
-struct UsbusEndpointDescriptor {
-    uint8_t  bLength;
-    uint8_t  bDescriptorType;
-    uint8_t  bEndpointAddress;
-    uint8_t  bmAttributes;
-    uint16_t wMaxPacketSize;
-    uint8_t  bInterval;
-    uint8_t  bRefresh;
-    uint8_t  bSynchAddress;
-    const unsigned char *extra;
-    int extra_length;
-};
-
-struct UsbusInterfaceDescriptor {
-    uint8_t  bLength;
-    uint8_t  bDescriptorType;
-    uint8_t  bInterfaceNumber;
-    uint8_t  bAlternateSetting;
-    uint8_t  bNumEndpoints;
-    uint8_t  bInterfaceClass;
-    uint8_t  bInterfaceSubClass;
-    uint8_t  bInterfaceProtocol;
-    uint8_t  iInterface;
-    // endpoint_t;
-    const unsigned char *extra;
-    int extra_length;
-};
-
-struct UsbusInterface {
-    //    interface_descriptor *altsetting;
-    int num_altsetting;
-};
-
-struct UsbusConfigDescriptor {
-    uint8_t  bLength;
-    uint8_t  bDescriptorType;
-    uint16_t wTotalLength;
-    uint8_t  bNumInterfaces;
-    uint8_t  bConfigurationValue;
-    uint8_t  iConfiguration;
-    uint8_t  bmAttributes;
-    uint8_t  MaxPower;
-    //    interface_t *interface;
-    const unsigned char *extra;
-    int extra_length;
-};
-
-struct UsbusControlSetup {
-    uint8_t  bmRequestType;
-    uint8_t  bRequest;
-    uint16_t wValue;
-    uint16_t wIndex;
-    uint16_t wLength;
-};
 
 #ifdef __cplusplus
 } // extern "C"
