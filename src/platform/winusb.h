@@ -43,6 +43,9 @@ int winusbGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang,
 int winusbOpen(UsbusDevice *d);
 void winusbClose(UsbusDevice *d);
 
+int winusbClaimInterface(UsbusDevice *d, unsigned index);
+int winusbReleaseInterface(UsbusDevice *d, unsigned index);
+
 int winusbGetConfiguration(UsbusDevice *device, uint8_t *config);
 int winusbSetConfiguration(UsbusDevice *device, uint8_t config);
 

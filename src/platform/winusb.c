@@ -32,6 +32,8 @@ const struct UsbusPlatform platformWinUSB = {
     winusbGetStringDescriptor,
     winusbOpen,
     winusbClose,
+    winusbClaimInterface,
+    winusbReleaseInterface,
     winusbGetConfiguration,
     winusbSetConfiguration,
     winusbSubmitTransfer,
@@ -182,6 +184,16 @@ void winusbClose(UsbusDevice *d)
         WinUsb_Free(wd->winusbHandle);
         wd->winusbHandle = INVALID_HANDLE_VALUE;
     }
+}
+
+int winusbClaimInterface(UsbusDevice *d, unsigned index)
+{
+    return UsbusErrUnknown;
+}
+
+int winusbReleaseInterface(UsbusDevice *d, unsigned index)
+{
+    return UsbusErrUnknown;
 }
 
 int winusbGetConfiguration(UsbusDevice *device, uint8_t *config)
