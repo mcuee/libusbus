@@ -25,6 +25,7 @@ struct IOKitContext {
 // iokit-specific potion of UsbusDevice
 struct IOKitDevice {
     IOUSBDeviceInterface_t **dev;
+    // XXX: maintain array of interfaces
     IOUSBInterfaceInterface_t **intf;
     CFRunLoopSourceRef runLoopSourceRef;
 };
@@ -39,6 +40,10 @@ int iokitGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang,
 
 int iokitOpen(UsbusDevice *device);
 void iokitClose(UsbusDevice *device);
+
+int iokitGetConfigDescriptor(UsbusDevice *d, unsigned index, struct UsbusConfigDescriptor *desc);
+int iokitGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsetting, struct UsbusInterfaceDescriptor *desc);
+int iokitGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, struct UsbusEndpointDescriptor *desc);
 
 int iokitClaimInterface(UsbusDevice *d, unsigned index);
 int iokitReleaseInterface(UsbusDevice *d, unsigned index);
