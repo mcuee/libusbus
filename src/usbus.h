@@ -35,10 +35,6 @@ struct UsbusEndpointDescriptor {
     uint8_t  bmAttributes;
     uint16_t wMaxPacketSize;
     uint8_t  bInterval;
-    uint8_t  bRefresh;
-    uint8_t  bSynchAddress;
-    const unsigned char *extra;
-    int extra_length;
 };
 
 struct UsbusInterfaceDescriptor {
@@ -51,14 +47,6 @@ struct UsbusInterfaceDescriptor {
     uint8_t  bInterfaceSubClass;
     uint8_t  bInterfaceProtocol;
     uint8_t  iInterface;
-    // endpoint_t;
-    const unsigned char *extra;
-    int extra_length;
-};
-
-struct UsbusInterface {
-    //    interface_descriptor *altsetting;
-    int num_altsetting;
 };
 
 struct UsbusConfigDescriptor {
@@ -69,10 +57,7 @@ struct UsbusConfigDescriptor {
     uint8_t  bConfigurationValue;
     uint8_t  iConfiguration;
     uint8_t  bmAttributes;
-    uint8_t  MaxPower;
-    //    interface_t *interface;
-    const unsigned char *extra;
-    int extra_length;
+    uint8_t  bMaxPower;
 };
 
 struct UsbusControlSetup {
