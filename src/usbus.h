@@ -193,9 +193,23 @@ int usbusReadSync(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsign
 int usbusWriteSync(UsbusDevice *d, uint8_t ep, const uint8_t *buf, unsigned len, unsigned *written);
 
 // async I/O
+struct UsbusTransfer *usbusAllocateTransfer();
+void usbusReleaseTransfer(struct UsbusTransfer *t);
+
 int usbusSubmitTransfer(struct UsbusTransfer *t);
 int usbusCancelTransfer(struct UsbusTransfer *t);
 int usbusProcessEvents(UsbusContext *ctx, unsigned timeoutMillis);
+
+static inline void usbusSetBulkTransferInfo(struct UsbusTransfer *t, UsbusDevice *d, uint8_t ep,
+                                            uint8_t *buf, unsigned len, UsbusTransferCallback cb, void *userData)
+{
+    t->device = d;
+    t->endpoint = ep;
+    t->buffer = buf;
+    t->requestedLength = len;
+    t->callback = cb;
+    t->userData = userData;
+}
 
 static inline int usbusTransferIsIN(const struct UsbusTransfer *t) {
     return (t->endpoint & 0x80);

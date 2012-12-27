@@ -1,6 +1,24 @@
 #include "usbus.h"
 #include "usbus_private.h"
 
+struct UsbusTransfer *usbusAllocateTransfer()
+{
+    struct UsbusTransfer *t = malloc(sizeof *t);
+    if (!t) {
+        logerror("failed to allocate transfer");
+        return 0;
+    }
+    memset(t, 0, sizeof *t);
+    return t;
+}
+
+void usbusReleaseTransfer(struct UsbusTransfer *t)
+{
+    if (t) {
+        free(t);
+    }
+}
+
 int usbusSubmitTransfer(struct UsbusTransfer *t)
 {
     if (!t->device->isOpen) {
