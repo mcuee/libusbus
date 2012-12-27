@@ -264,12 +264,42 @@ int winusbGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep,
 
 int winusbClaimInterface(UsbusDevice *d, unsigned index)
 {
-    return UsbusErrUnknown;
+    struct WinUSBDevice *wd = &d->winusb;
+
+    if (index >= MAX_WINUSB_INTERFACE_HANDLES) {
+        logdebug("winusbClaimInterface(): interface index %d is too high\n", index);
+        return -1;
+    }
+
+    if (wd->winusbHandles[index] != NULL) {
+        // already claimed
+        return UsbusOK;
+    }
+
+    if (!WinUsb_GetAssociatedInterface(wd->winusbHandles[0], index, &wd->winusbHandles[index])) {
+        logdebug("winusbClaimInterface() WinUsb_GetAssociatedInterface: %s",
+                 win32ErrorString(GetLastError()));
+        return -1;
+    }
+
+    return UsbusOK;
 }
 
 int winusbReleaseInterface(UsbusDevice *d, unsigned index)
 {
-    return UsbusErrUnknown;
+    struct WinUSBDevice *wd = &d->winusb;
+
+    if (index >= MAX_WINUSB_INTERFACE_HANDLES) {
+        logdebug("winusbGetEndpointDescriptor(): interface index %d is too high\n", index);
+        return -1;
+    }
+
+    if (wd->winusbHandles[index] != NULL) {
+        WinUsb_Free(wd->winusbHandles[index]);
+        wd->winusbHandles[index] = NULL;
+    }
+
+    return UsbusOK;
 }
 
 int winusbGetConfiguration(UsbusDevice *device, uint8_t *config)
