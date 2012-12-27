@@ -95,7 +95,7 @@ static void populateDeviceDetails(UsbusDevice *device)
 }
 
 
-static bool getDeviceInterface(io_object_t iodev, IOUSBDeviceInterface_t*** devInterfaceOut)
+static void* getPluginInterface(io_object_t iodev, CFUUIDRef type, CFUUIDRef uuid)
 {
     /*
      * Given an io_object, retrieve the device interface that allows us to actually
@@ -104,28 +104,27 @@ static bool getDeviceInterface(io_object_t iodev, IOUSBDeviceInterface_t*** devI
 
     SInt32 score;
     IOCFPlugInInterface** plugin = 0;
+    void *p;
 
-    kern_return_t err = IOCreatePlugInInterfaceForService(iodev,
-                                                          kIOUSBDeviceUserClientTypeID,
+    kern_return_t r = IOCreatePlugInInterfaceForService(iodev,
+                                                          type,
                                                           kIOCFPlugInInterfaceID,
                                                           &plugin,
                                                           &score);
-    if (err != kIOReturnSuccess || plugin == 0) {
-        logerror("failed to create plugin: 0x%x", err);
-        return false;
+    if (r != kIOReturnSuccess || plugin == 0) {
+        logerror("failed to create plugin: 0x%08x (%s)", r, iokit_sterror(r));
+        return NULL;
     }
 
-    err = (*plugin)->QueryInterface(plugin,
-                                    CFUUIDGetUUIDBytes(kIOUSBDeviceInterfaceID320),
-                                    (LPVOID*)devInterfaceOut);
-    if (err != kIOReturnSuccess || devInterfaceOut == 0) {
-        logerror("QueryInterface returned: 0x%x", err);
-        return false;
-    }
-
+    r = (*plugin)->QueryInterface(plugin, CFUUIDGetUUIDBytes(uuid), &p);
     (*plugin)->Release(plugin);
 
-    return true;
+    if (r != kIOReturnSuccess || p == 0) {
+        logerror("QueryInterface returned: 0x%x", r);
+        return NULL;
+    }
+
+    return p;
 }
 
 
@@ -142,7 +141,8 @@ static void deviceDiscoveredCallback(void *p, io_iterator_t iterator)
 
         UsbusDevice *d = allocateDevice();
         if (d) {
-            if (getDeviceInterface(io, &d->iokit.dev)) {
+            d->iokit.dev = getPluginInterface(io, kIOUSBDeviceUserClientTypeID, kIOUSBDeviceInterfaceID320);
+            if (d->iokit.dev) {
                 populateDeviceDetails(d);
                 dispatchConnectedDevice(ctx, d);
             }
@@ -165,9 +165,9 @@ static void deviceTerminatedCallback(void *p, io_iterator_t iterator)
         UsbusDevice device;
         device.ctx = ctx;
 
-        if (getDeviceInterface(io, &device.iokit.dev)) {
+        device.iokit.dev = getPluginInterface(io, kIOUSBDeviceUserClientTypeID, kIOUSBDeviceInterfaceID320);
+        if (device.iokit.dev) {
             populateDeviceDetails(&device);
-
             ctx->disconnected(&device);
         }
 
@@ -366,28 +366,8 @@ int iokitClaimInterface(UsbusDevice *d, unsigned index)
         }
     }
 
-    IOReturn r;
-    SInt32 score;
-    IOCFPlugInInterface **plugin = NULL;
-    r = IOCreatePlugInInterfaceForService(usbInterface,
-                                          kIOUSBInterfaceUserClientTypeID,
-                                          kIOCFPlugInInterfaceID,
-                                          &plugin, &score);
-    r = IOObjectRelease(usbInterface);
-    if ((r != kIOReturnSuccess) || !plugin) {
-        logdebug("Unable to create an interface plug-in: %08x (%s)", r, iokit_sterror(r));
-        return -1;
-    }
-
-
-    //Now create the device interface for the interface
-    HRESULT result = (*plugin)->QueryInterface(plugin,
-                                               CFUUIDGetUUIDBytes(kIOUSBInterfaceInterfaceID197),
-                                               (LPVOID*)&d->iokit.intf);
-    //No longer need the intermediate plug-in
-    (*plugin)->Release(plugin);
-    if (result || !d->iokit.intf) {
-        logdebug("Couldn’t create a device interface for the interface(%08x)", (int)result);
+    d->iokit.intf = getPluginInterface(usbInterface, kIOUSBInterfaceUserClientTypeID, kIOUSBInterfaceInterfaceID197);
+    if (!d->iokit.intf) {
         return -1;
     }
 
@@ -397,7 +377,7 @@ int iokitClaimInterface(UsbusDevice *d, unsigned index)
      */
 
     IOUSBInterfaceInterface_t **intf = d->iokit.intf;
-    r = (*intf)->USBInterfaceOpen(intf);
+    IOReturn r = (*intf)->USBInterfaceOpen(intf);
     if (r != kIOReturnSuccess) {
         logdebug("iokitClaimInterface() USBInterfaceOpen: %08x (%s)", r, iokit_sterror(r));
         (*intf)->Release(intf);
@@ -514,7 +494,7 @@ int iokitGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsett
     IOUSBDeviceInterface_t** dev = d->iokit.dev;
     IOUSBInterfaceInterface_t **intf = d->iokit.intf;
 
-    // XXX: cache IOUSBConfigurationDescriptorPtr per interface
+    // XXX: cache IOUSBConfigurationDescriptorPtr
     IOUSBConfigurationDescriptorPtr cfgDesc;
     IOReturn r = (*dev)->GetConfigurationDescriptorPtr(dev, index, &cfgDesc);
     if (r != kIOReturnSuccess) {
@@ -522,9 +502,10 @@ int iokitGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsett
         return -1;
     }
 
-    uint8_t *p = (uint8_t*)cfgDesc, *pend = p + USBToHostWord(cfgDesc->wTotalLength);
+    uint8_t *p = (uint8_t*)cfgDesc;
+    uint8_t *pend = p + USBToHostWord(cfgDesc->wTotalLength);
 
-    // set details for the interface we're looking for
+    // get details for the interface we're looking for
     uint8_t interfaceNumber, alternateSetting;
     IOReturn r1 = (*intf)->GetInterfaceNumber(intf, &interfaceNumber);
     IOReturn r2 = (*intf)->GetAlternateSetting(intf, &alternateSetting);
