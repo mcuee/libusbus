@@ -11,6 +11,8 @@
 
 #include <winusb.h>
 
+#define MAX_WINUSB_INTERFACE_HANDLES    32
+
 // winusb-specific potion of UsbusContext
 struct WinUSBContext {
     HDEVNOTIFY hDevNotify;
@@ -21,7 +23,10 @@ struct WinUSBContext {
 struct WinUSBDevice {
     TCHAR path[MAX_PATH];
     HANDLE deviceHandle;
-    WINUSB_INTERFACE_HANDLE winusbHandle;
+    // we maintain an array of interface handles such that we can respond to descriptor requests for any interface,
+    // but we currently only allow reading/writing to a single "open" interface at a time.
+    // WinUSB always opens the first interface by default in WinUSB_Initialize().
+    WINUSB_INTERFACE_HANDLE winusbHandles[MAX_WINUSB_INTERFACE_HANDLES];
 };
 
 // struct to track transfers through IOCP.

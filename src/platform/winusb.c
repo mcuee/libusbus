@@ -111,7 +111,7 @@ int winusbGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang, uint
     struct WinUSBDevice *wd = &d->winusb;
 
     ULONG sz;
-    if (!WinUsb_GetDescriptor(wd->winusbHandle, USB_STRING_DESCRIPTOR_TYPE,
+    if (!WinUsb_GetDescriptor(wd->winusbHandles[0], USB_STRING_DESCRIPTOR_TYPE,
                               index, lang, buf, len, &sz))
     {
         logdebug("winusbGetStringDescriptor() WinUsb_GetDescriptor: %s",
@@ -133,6 +133,11 @@ int winusbOpen(UsbusDevice *d)
     struct WinUSBDevice *wd = &d->winusb;
     struct WinUSBContext *wc = &d->ctx->winusb;
 
+    unsigned i;
+    for (i = 0; i < ARRAYSIZE(wd->winusbHandles); ++i) {
+        wd->winusbHandles[i] = NULL;
+    }
+
     wd->deviceHandle = CreateFile(wd->path,
                                   GENERIC_READ | GENERIC_WRITE,
                                   FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -145,7 +150,7 @@ int winusbOpen(UsbusDevice *d)
         return -1;
     }
 
-    if (!WinUsb_Initialize(wd->deviceHandle, &wd->winusbHandle)) {
+    if (!WinUsb_Initialize(wd->deviceHandle, &wd->winusbHandles[0])) {
         logerror("winusbOpen WinUsb_Initialize: %s\n", win32ErrorString(GetLastError()));
         CloseHandle(wd->deviceHandle);
         return -1;
@@ -180,9 +185,12 @@ void winusbClose(UsbusDevice *d)
         wd->deviceHandle = INVALID_HANDLE_VALUE;
     }
 
-    if (wd->winusbHandle != INVALID_HANDLE_VALUE) {
-        WinUsb_Free(wd->winusbHandle);
-        wd->winusbHandle = INVALID_HANDLE_VALUE;
+    unsigned i;
+    for (i = 0; i < ARRAYSIZE(wd->winusbHandles); ++i) {
+        if (wd->winusbHandles[i] != NULL) {
+            WinUsb_Free(wd->winusbHandles[i]);
+            wd->winusbHandles[i] = NULL;
+        }
     }
 }
 
@@ -222,14 +230,14 @@ int winusbSubmitTransfer(struct UsbusTransfer *t)
 
     if (usbusTransferIsIN(t)) {
 
-        if (!WinUsb_ReadPipe(wd->winusbHandle, t->endpoint, t->buffer, t->requestedLength, 0, &wot->ov)) {
+        if (!WinUsb_ReadPipe(wd->winusbHandles[0], t->endpoint, t->buffer, t->requestedLength, 0, &wot->ov)) {
             logdebug("winusbReadSync() WinUsb_ReadPipe: %s", win32ErrorString(GetLastError()));
             return -1;
         }
 
     } else {
 
-        if (!WinUsb_WritePipe(wd->winusbHandle, t->endpoint, t->buffer, t->requestedLength, 0, &wot->ov)) {
+        if (!WinUsb_WritePipe(wd->winusbHandles[0], t->endpoint, t->buffer, t->requestedLength, 0, &wot->ov)) {
             logdebug("winusbReadSync() WinUsb_WritePipe: %s", win32ErrorString(GetLastError()));
             return -1;
         }
@@ -243,7 +251,7 @@ int winusbCancelTransfer(struct UsbusTransfer *t)
 {
     struct WinUSBDevice *wd = &t->device->winusb;
 
-    if (!WinUsb_AbortPipe(wd->winusbHandle, t->endpoint)) {
+    if (!WinUsb_AbortPipe(wd->winusbHandles[0], t->endpoint)) {
         logdebug("winusbCancelTransfer() WinUsb_AbortPipe: %s", win32ErrorString(GetLastError()));
         return -1;
     }
@@ -282,7 +290,7 @@ int winusbReadSync(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsig
     struct WinUSBDevice *wd = &d->winusb;
 
     ULONG transferred = 0;
-    if (!WinUsb_ReadPipe(wd->winusbHandle, ep, (PUCHAR)buf, len, &transferred, 0)) {
+    if (!WinUsb_ReadPipe(wd->winusbHandles[0], ep, (PUCHAR)buf, len, &transferred, 0)) {
         logdebug("winusbReadSync() WinUsb_ReadPipe: %s", win32ErrorString(GetLastError()));
         return -1;
     }
@@ -297,7 +305,7 @@ int winusbWriteSync(UsbusDevice *d, uint8_t ep, const uint8_t *buf, unsigned len
     struct WinUSBDevice *wd = &d->winusb;
 
     ULONG transferred = 0;
-    if (!WinUsb_WritePipe(wd->winusbHandle, ep, (PUCHAR)buf, len, &transferred, 0)) {
+    if (!WinUsb_WritePipe(wd->winusbHandles[0], ep, (PUCHAR)buf, len, &transferred, 0)) {
         logdebug("winusbWriteSync() WinUsb_WritePipe: %s", win32ErrorString(GetLastError()));
         return -1;
     }
