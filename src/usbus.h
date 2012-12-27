@@ -176,6 +176,10 @@ int usbusGetStringDescriptorAscii(UsbusDevice *d, uint8_t index, uint16_t lang,
 int  usbusOpen(UsbusDevice *d);
 void usbusClose(UsbusDevice *d);
 
+int usbusGetConfigDescriptor(UsbusDevice *d, unsigned index, struct UsbusConfigDescriptor *desc);
+int usbusGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsetting, struct UsbusInterfaceDescriptor *desc);
+int usbusGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, struct UsbusEndpointDescriptor *desc);
+
 int usbusClaimInterface(UsbusDevice *d, unsigned index);
 int usbusReleaseInterface(UsbusDevice *d, unsigned index);
 

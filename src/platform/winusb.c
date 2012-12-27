@@ -32,6 +32,9 @@ const struct UsbusPlatform platformWinUSB = {
     winusbGetStringDescriptor,
     winusbOpen,
     winusbClose,
+    winusbGetConfigDescriptor,
+    winusbGetInterfaceDescriptor,
+    winusbGetEndpointDescriptor,
     winusbClaimInterface,
     winusbReleaseInterface,
     winusbGetConfiguration,
@@ -192,6 +195,80 @@ void winusbClose(UsbusDevice *d)
             wd->winusbHandles[i] = NULL;
         }
     }
+}
+
+int winusbGetConfigDescriptor(UsbusDevice *d, unsigned index, struct UsbusConfigDescriptor *desc)
+{
+    struct WinUSBDevice *wd = &d->winusb;
+
+    ULONG sz;
+    if (!WinUsb_GetDescriptor(wd->winusbHandles[0], USB_CONFIGURATION_DESCRIPTOR_TYPE,
+                              index, 0, (PUCHAR)desc, sizeof(*desc), &sz))
+    {
+        logdebug("winusbGetConfigDescriptor() WinUsb_GetDescriptor: %s",
+                 win32ErrorString(GetLastError()));
+        return -1;
+    }
+
+    return UsbusOK;
+}
+
+int winusbGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsetting, struct UsbusInterfaceDescriptor *desc)
+{
+    struct WinUSBDevice *wd = &d->winusb;
+
+    if (index >= MAX_WINUSB_INTERFACE_HANDLES) {
+        logdebug("winusbGetInterfaceDescriptor(): interface index %d is too high\n", index);
+        return -1;
+    }
+
+    WINUSB_INTERFACE_HANDLE h = wd->winusbHandles[index];
+    if (h == NULL) {
+        logdebug("winusbGetInterfaceDescriptor(): interface for index %d not open\n", index);
+        return -1;
+    }
+
+    if (!WinUsb_QueryInterfaceSettings(h, altsetting, (PUSB_INTERFACE_DESCRIPTOR)desc))
+    {
+        logdebug("winusbGetInterfaceDescriptor() WinUsb_GetDescriptor: %s",
+                 win32ErrorString(GetLastError()));
+        return -1;
+    }
+
+    return UsbusOK;
+}
+
+int winusbGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, struct UsbusEndpointDescriptor *desc)
+{
+    struct WinUSBDevice *wd = &d->winusb;
+
+    if (intfIndex >= MAX_WINUSB_INTERFACE_HANDLES) {
+        logdebug("winusbGetEndpointDescriptor(): interface index %d is too high\n", intfIndex);
+        return -1;
+    }
+
+    WINUSB_INTERFACE_HANDLE h = wd->winusbHandles[intfIndex];
+    if (h == NULL) {
+        logdebug("winusbGetEndpointDescriptor(): interface for index %d not open\n", intfIndex);
+        return -1;
+    }
+
+    WINUSB_PIPE_INFORMATION pipeInfo;
+    if (!WinUsb_QueryPipe(h, 0, ep, &pipeInfo)) {
+        logdebug("winusbGetEndpointDescriptor() WinUsb_QueryPipe: %s",
+                 win32ErrorString(GetLastError()));
+        return -1;
+    }
+
+    // reconstruct desc from the pipe info
+    desc->bLength = sizeof(*desc);
+    desc->bDescriptorType = UsbusDescriptorEndpoint;
+    desc->bEndpointAddress = pipeInfo.PipeId;
+    desc->bmAttributes = 0; // XXX: populate this
+    desc->wMaxPacketSize = pipeInfo.MaximumPacketSize;
+    desc->bInterval = pipeInfo.Interval;
+
+    return UsbusOK;
 }
 
 int winusbClaimInterface(UsbusDevice *d, unsigned index)

@@ -48,6 +48,10 @@ int winusbGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang,
 int winusbOpen(UsbusDevice *d);
 void winusbClose(UsbusDevice *d);
 
+int winusbGetConfigDescriptor(UsbusDevice *d, unsigned index, struct UsbusConfigDescriptor *desc);
+int winusbGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsetting, struct UsbusInterfaceDescriptor *desc);
+int winusbGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, struct UsbusEndpointDescriptor *desc);
+
 int winusbClaimInterface(UsbusDevice *d, unsigned index);
 int winusbReleaseInterface(UsbusDevice *d, unsigned index);
 

@@ -56,6 +56,10 @@ struct UsbusPlatform {
     int (*open)(UsbusDevice *dev);
     void (*close)(UsbusDevice *dev);
 
+    int (*getConfigDescriptor)(UsbusDevice *d, unsigned index, struct UsbusConfigDescriptor *cfg);
+    int (*getInterfaceDescriptor)(UsbusDevice *d, unsigned index, unsigned altsetting, struct UsbusInterfaceDescriptor *cfg);
+    int (*getEndpointDescriptor)(UsbusDevice *d, unsigned intfIndex, unsigned ep, struct UsbusEndpointDescriptor *desc);
+
     int (*claimInterface)(UsbusDevice *d, unsigned index);
     int (*releaseInterface)(UsbusDevice *d, unsigned index);
 
