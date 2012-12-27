@@ -49,6 +49,7 @@ const struct UsbusPlatform platformWinUSB = {
 static char *win32ErrorString(uint32_t errorCode);
 
 static void enumerateConnectedDevices(UsbusContext *ctx, const GUID *guid);
+static WINUSB_INTERFACE_HANDLE intfHandle(struct WinUSBDevice *wd, unsigned index);
 static int populateDeviceDetails(UsbusDevice *d, HDEVINFO devInfo, PSP_DEVINFO_DATA devInfoData, const GUID *guid);
 static int getDevicePath(UsbusDevice *d, HDEVINFO devInfo, PSP_DEVINFO_DATA devInfoData, const GUID *guid);
 static int getDeviceSpeed(UsbusDevice *d, WINUSB_INTERFACE_HANDLE h);
@@ -217,12 +218,7 @@ int winusbGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altset
 {
     struct WinUSBDevice *wd = &d->winusb;
 
-    if (index >= MAX_WINUSB_INTERFACE_HANDLES) {
-        logdebug("winusbGetInterfaceDescriptor(): interface index %d is too high\n", index);
-        return -1;
-    }
-
-    WINUSB_INTERFACE_HANDLE h = wd->winusbHandles[index];
+    WINUSB_INTERFACE_HANDLE h = intfHandle(wd, index);
     if (h == NULL) {
         logdebug("winusbGetInterfaceDescriptor(): interface for index %d not open\n", index);
         return -1;
@@ -242,12 +238,7 @@ int winusbGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep,
 {
     struct WinUSBDevice *wd = &d->winusb;
 
-    if (intfIndex >= MAX_WINUSB_INTERFACE_HANDLES) {
-        logdebug("winusbGetEndpointDescriptor(): interface index %d is too high\n", intfIndex);
-        return -1;
-    }
-
-    WINUSB_INTERFACE_HANDLE h = wd->winusbHandles[intfIndex];
+    WINUSB_INTERFACE_HANDLE h = intfHandle(wd, intfIndex);
     if (h == NULL) {
         logdebug("winusbGetEndpointDescriptor(): interface for index %d not open\n", intfIndex);
         return -1;
@@ -428,6 +419,20 @@ static char *win32ErrorString(uint32_t errorCode)
     }
 
     return &msgbuf[0];
+}
+
+
+static WINUSB_INTERFACE_HANDLE intfHandle(struct WinUSBDevice *wd, unsigned index)
+{
+    /*
+     * Bounds checker for access to winusbHandles[]
+     */
+
+    if (index >= ARRAYSIZE(wd->winusbHandles)) {
+        return NULL;
+    }
+
+    return wd->winusbHandles[index];
 }
 
 
