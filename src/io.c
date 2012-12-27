@@ -25,6 +25,13 @@ int usbusSubmitTransfer(struct UsbusTransfer *t)
         return UsbusNotOpen;
     }
 
+    /*
+     * Reset length here, rather than the setXXXTransferInfo() routines,
+     * such that a transfer that's being reused (common for IN transfers)
+     * doesn't need to reset all the transfer details each time.
+     */
+    t->transferredlength = 0;
+
     return gPlatform->submitTransfer(t);
 }
 
