@@ -328,15 +328,21 @@ int winusbSubmitTransfer(struct UsbusTransfer *t)
     if (usbusTransferIsIN(t)) {
 
         if (!WinUsb_ReadPipe(wd->winusbHandles[0], t->endpoint, t->buffer, t->requestedLength, 0, &wot->ov)) {
-            logdebug("winusbReadSync() WinUsb_ReadPipe: %s", win32ErrorString(GetLastError()));
-            return -1;
+
+            if (ERROR_IO_PENDING != GetLastError()) {
+                logdebug("winusbSubmitTransfer() WinUsb_ReadPipe: %s", win32ErrorString(GetLastError()));
+                return -1;
+            }
         }
 
     } else {
 
         if (!WinUsb_WritePipe(wd->winusbHandles[0], t->endpoint, t->buffer, t->requestedLength, 0, &wot->ov)) {
-            logdebug("winusbReadSync() WinUsb_WritePipe: %s", win32ErrorString(GetLastError()));
-            return -1;
+
+            if (ERROR_IO_PENDING != GetLastError()) {
+                logdebug("winusbSubmitTransfer() WinUsb_WritePipe: %s", win32ErrorString(GetLastError()));
+                return -1;
+            }
         }
     }
 
