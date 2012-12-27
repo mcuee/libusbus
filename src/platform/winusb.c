@@ -371,24 +371,39 @@ int winusbProcessEvents(UsbusContext *ctx, unsigned timeoutMillis)
     DWORD transferred;
     ULONG_PTR completionKey;
 
+    enum UsbusStatus status = UsbusOK;
+
     if (!GetQueuedCompletionStatus(wc->completionPort, &transferred, &completionKey, &ov, timeoutMillis)) {
 
         if (WAIT_TIMEOUT == GetLastError()) {
             return UsbusOK;
         }
 
-        logwarn("winusbProcessEvents() GetQueuedCompletionStatus: %s", win32ErrorString(GetLastError()));
-        return -1;
+        /*
+         * If GetQueuedCompletionStatus returned false but ov is still valid, then we can still dispatch
+         * an event for the failed transfer.
+         */
+
+        if (ov == NULL) {
+            logwarn("winusbProcessEvents() GetQueuedCompletionStatus: %s", win32ErrorString(GetLastError()));
+            return -1;
+        }
+
+        // XXX: determine a more specific error type if possible
+        status = UsbusIoErr;
     }
 
     struct WinOverlappedTransfer* wot = (struct WinOverlappedTransfer*)ov;
     struct UsbusTransfer *t = wot->t;
     t->transferredlength = transferred;
     if (t->callback) {
-        t->callback(t, UsbusOK);
+        t->callback(t, status);
     }
 
     free(wot);
+
+    // XXX: figure out how to integrate both IO event processing and device notification event processing...
+
     return UsbusOK;
 }
 
