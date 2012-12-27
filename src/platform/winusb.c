@@ -499,17 +499,15 @@ static int populateDeviceDetails(UsbusDevice *d, HDEVINFO devInfo, PSP_DEVINFO_D
         return -1;
     }
 
-    USB_DEVICE_DESCRIPTOR desc;
     ULONG transferred;
     BOOL success = WinUsb_GetDescriptor(winusbHandle,
                                         USB_DEVICE_DESCRIPTOR_TYPE,
                                         0,
                                         0,
-                                        (PUCHAR)&desc,
-                                        sizeof(desc),
+                                        (PUCHAR)&d->descriptor,
+                                        sizeof(d->descriptor),
                                         &transferred);
     if (success) {
-        memcpy(&d->descriptor, &desc, sizeof desc);
         getDeviceSpeed(d, winusbHandle);
     }
 
