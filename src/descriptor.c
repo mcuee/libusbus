@@ -42,11 +42,19 @@ int usbusGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, 
 
 int usbusGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang, uint8_t *buf, unsigned len, unsigned *transferred)
 {
+    if (!d->isOpen) {
+        return UsbusNotOpen;
+    }
+
     return gPlatform->getStringDescriptor(d, index, lang, buf, len, transferred);
 }
 
 int usbusGetStringDescriptorAscii(UsbusDevice *d, uint8_t index, uint16_t lang, char *buf, unsigned len, unsigned *transferred)
 {
+    if (!d->isOpen) {
+        return UsbusNotOpen;
+    }
+
     uint8_t unicodeBuf[256];
     unsigned unicodeLen;
     int r = gPlatform->getStringDescriptor(d, index, lang, unicodeBuf, sizeof unicodeBuf, &unicodeLen);
