@@ -1,5 +1,9 @@
 #include "usbus.h"
 #include "usbus_private.h"
+#include "logger.h"
+
+#include <stdlib.h>
+#include <string.h>
 
 struct UsbusTransfer *usbusAllocateTransfer()
 {
