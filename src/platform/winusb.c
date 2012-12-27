@@ -224,8 +224,7 @@ int winusbGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altset
         return -1;
     }
 
-    if (!WinUsb_QueryInterfaceSettings(h, altsetting, (PUSB_INTERFACE_DESCRIPTOR)desc))
-    {
+    if (!WinUsb_QueryInterfaceSettings(h, altsetting, (PUSB_INTERFACE_DESCRIPTOR)desc)) {
         logdebug("winusbGetInterfaceDescriptor() WinUsb_GetDescriptor: %s",
                  win32ErrorString(GetLastError()));
         return -1;
@@ -266,7 +265,7 @@ int winusbClaimInterface(UsbusDevice *d, unsigned index)
 {
     struct WinUSBDevice *wd = &d->winusb;
 
-    if (index >= MAX_WINUSB_INTERFACE_HANDLES) {
+    if (index >= ARRAYSIZE(wd->winusbHandles)) {
         logdebug("winusbClaimInterface(): interface index %d is too high\n", index);
         return -1;
     }
@@ -367,6 +366,11 @@ int winusbProcessEvents(UsbusContext *ctx, unsigned timeoutMillis)
     ULONG_PTR completionKey;
 
     if (!GetQueuedCompletionStatus(wc->completionPort, &transferred, &completionKey, &ov, timeoutMillis)) {
+
+        if (WAIT_TIMEOUT == GetLastError()) {
+            return UsbusOK;
+        }
+
         logwarn("winusbProcessEvents() GetQueuedCompletionStatus: %s", win32ErrorString(GetLastError()));
         return -1;
     }

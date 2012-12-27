@@ -75,6 +75,7 @@ struct UsbusPlatform {
 };
 
 extern const struct UsbusPlatform *const gPlatform;
+extern struct UsbusContext defaultCtxt;
 
 /**************************************************************
  * Internal Routines/Helpers

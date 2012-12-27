@@ -14,7 +14,7 @@
     #error "Unsupported Platform"
 #endif
 
-static struct UsbusContext defaultCtxt = {
+struct UsbusContext defaultCtxt = {
     0,
     0,
     0

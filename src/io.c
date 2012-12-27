@@ -23,7 +23,8 @@ int usbusCancelTransfer(struct UsbusTransfer *t)
 
 int usbusProcessEvents(UsbusContext *ctx, unsigned timeoutMillis)
 {
-    return gPlatform->processEvents(ctx, timeoutMillis);
+    struct UsbusContext *c = ctx ? ctx : &defaultCtxt;
+    return gPlatform->processEvents(c, timeoutMillis);
 }
 
 
