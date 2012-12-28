@@ -40,11 +40,6 @@ void onDeviceDisconnected(struct UsbusDevice *d)
 
 void dumpDeviceInfo(UsbusDevice *d, struct UsbusDeviceDescriptor *desc)
 {
-    int r = usbusClaimInterface(d, 0);
-    if (r != UsbusOK) {
-        return;
-    }
-
     /*
      * Dump string descriptors
      */
@@ -58,6 +53,8 @@ void dumpDeviceInfo(UsbusDevice *d, struct UsbusDeviceDescriptor *desc)
     if (usbusGetStringDescriptorAscii(d, desc->iManufacturer, 0, str, sizeof str, &len) == UsbusOK) {
         printf("mfgr: %s\n", str);
     }
+
+    int r;
 
     // iterate each device configuration
     unsigned c;
@@ -78,11 +75,14 @@ void dumpDeviceInfo(UsbusDevice *d, struct UsbusDeviceDescriptor *desc)
         unsigned i;
         for (i = 0; i < cfgDesc.bNumInterfaces; ++i) {
 
+            if (usbusClaimInterface(d, i) != UsbusOK) {
+                continue;
+            }
+
             struct UsbusInterfaceDescriptor intfDesc;
-            r = usbusGetInterfaceDescriptor(d, i, 0, &intfDesc);
-            if (r != UsbusOK) {
-                printf("intf descriptor: fail\n");
-                return;
+            // XXX: only ever checking the first alt setting
+            if (usbusGetInterfaceDescriptor(d, i, 0, &intfDesc) != UsbusOK) {
+                continue;
             }
 
             printf("intf descriptor %d: bNumEndpoints %d\n", i, intfDesc.bNumEndpoints);
@@ -93,15 +93,15 @@ void dumpDeviceInfo(UsbusDevice *d, struct UsbusDeviceDescriptor *desc)
             for (e = 0; e < intfDesc.bNumEndpoints; ++e) {
 
                 struct UsbusEndpointDescriptor epDesc;
-                r = usbusGetEndpointDescriptor(d, intfDesc.iInterface, e, &epDesc);
-                if (r != UsbusOK) {
-                    printf("ep descriptor %d: fail\n", e);
-                    return;
+                if (usbusGetEndpointDescriptor(d, i, e, &epDesc) != UsbusOK) {
+                    continue;
                 }
 
                 printf("ep descriptor %d: bEndpointAddress 0x%02x, bInterval %d, wMaxPacketSize %d\n",
                        e, epDesc.bEndpointAddress, epDesc.bInterval, epDesc.wMaxPacketSize);
             }
+
+            usbusReleaseInterface(d, i);
         }
     }
 
