@@ -17,7 +17,7 @@
 struct UsbusContext defaultCtxt = {
     0,
     0,
-    0
+    { 0 }
 };
 
 int usbusListen(struct UsbusContext *ctx,

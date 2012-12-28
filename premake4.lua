@@ -19,11 +19,11 @@ solution "usbus"
 
         configuration "Debug"
             defines { "DEBUG" }
-            flags { "Symbols" }
+            flags { "Symbols", "ExtraWarnings", "FatalWarnings" }
 
         configuration "Release"
             defines { "RELEASE" }
-            flags { "Optimize" }
+            flags { "Optimize", "ExtraWarnings", "FatalWarnings" }
 
     project "enumerator"
         kind "ConsoleApp"
