@@ -95,6 +95,64 @@ static void populateDeviceDetails(UsbusDevice *device)
 }
 
 
+static int pipeRefForEP(UsbusDevice *d, uint8_t ep, uint8_t *pipeRef)
+{
+    /*
+     * Helper to map pipe refs to endpoint addresses.
+     */
+
+    struct IOKitDevice *id = &d->iokit;
+
+    // XXX: will need to iterate through interfaces as well
+    unsigned i;
+    for (i = 0; i < USBUS_MAX_ENDPOINTS; ++i) {
+        if (id->epAddresses[i] == ep) {
+            *pipeRef = i + 1;
+            return UsbusOK;
+        }
+    }
+
+    logwarn("no pipeRef found for endpoint 0x%02x", ep);
+    return -1;
+}
+
+
+static int populateEPAddressesForInterface(UsbusDevice *d, unsigned index)
+{
+    /*
+     * IOKit read/write APIs operate on 'pipeRefs' rather than endpoint addresses directly.
+     * We cache them for all open interfaces so we don't need to query for each read/write.
+     */
+
+    IOUSBInterfaceInterface_t **intf = d->iokit.intf;
+
+    uint8_t numEndpoints;
+    IOReturn r = (*intf)->GetNumEndpoints(intf, &numEndpoints);
+    if (r) {
+        logerror("populateEPAddressesForInterface() GetNumEndpoints: %08x (%s)", r, iokit_sterror(r));
+        return -1;
+    }
+
+    unsigned i;
+    for (i = 1 ; i <= numEndpoints; ++i) {
+
+        uint16_t maxPacket;
+        uint8_t direction, number, transferType, interval;
+        r = (*intf)->GetPipeProperties(intf, i, &direction, &number, &transferType, &maxPacket, &interval);
+        if (r != kIOReturnSuccess) {
+            logerror("populateEPAddressesForInterface() GetPipeProperties: %08x (%s)", r, iokit_sterror(r));
+            return -1;
+        }
+
+        // reconstruct endpoint address and cache it
+        uint8_t ep = ((direction << 7) & 0x80) | (number & 0xf);
+        d->iokit.epAddresses[i - 1] = ep;
+    }
+
+    return UsbusOK;
+}
+
+
 static void* getPluginInterface(io_object_t iodev, CFUUIDRef type, CFUUIDRef uuid)
 {
     /*
@@ -591,19 +649,24 @@ int iokitSubmitTransfer(struct UsbusTransfer *t)
     IOReturn r;
     IOUSBInterfaceInterface_t **intf = t->device->iokit.intf;
 
+    uint8_t pipeRef;
+    if (pipeRefForEP(t->device, t->endpoint, &pipeRef) != UsbusOK) {
+        return -1;
+    }
+
     if (usbusTransferIsIN(t)) {
 
-        r = (*intf)->ReadPipeAsync(intf, t->endpoint, t->buffer, t->requestedLength, iokitAsyncIOCallback, t);
+        r = (*intf)->ReadPipeAsync(intf, pipeRef, t->buffer, t->requestedLength, iokitAsyncIOCallback, t);
         if (r != kIOReturnSuccess) {
-            logdebug("iokitSubmitTransfer() ReadPipeAsync: %08x", r);
+            logdebug("iokitSubmitTransfer() ReadPipeAsync: %08x (%s)", r, iokit_sterror(r));
             return -1;
         }
 
     } else {
 
-        r = (*intf)->WritePipeAsync(intf, t->endpoint, t->buffer, t->requestedLength, iokitAsyncIOCallback, t);
+        r = (*intf)->WritePipeAsync(intf, pipeRef, t->buffer, t->requestedLength, iokitAsyncIOCallback, t);
         if (r != kIOReturnSuccess) {
-            logdebug("iokitSubmitTransfer() WritePipeAsync: %08x", r);
+            logdebug("iokitSubmitTransfer() WritePipeAsync: %08x (%s)", r, iokit_sterror(r));
             return -1;
         }
     }
@@ -648,7 +711,12 @@ int iokitReadSync(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsign
 {
     IOUSBInterfaceInterface_t **intf = d->iokit.intf;
 
-    IOReturn ret = (*intf)->ReadPipe(intf, ep, buf, &len);
+    uint8_t pipeRef;
+    if (pipeRefForEP(d, ep, &pipeRef) != UsbusOK) {
+        return -1;
+    }
+
+    IOReturn ret = (*intf)->ReadPipe(intf, pipeRef, buf, &len);
     if (ret != kIOReturnSuccess) {
         logdebug("ReadPipe, err = %08x", ret);
         return -1;
@@ -662,7 +730,12 @@ int iokitWriteSync(UsbusDevice *d, uint8_t ep, const uint8_t *buf, unsigned len,
 {
     IOUSBInterfaceInterface_t **intf = d->iokit.intf;
 
-    IOReturn ret = (*intf)->WritePipe(intf, ep, (uint8_t*)buf, len);
+    uint8_t pipeRef;
+    if (pipeRefForEP(d, ep, &pipeRef) != UsbusOK) {
+        return -1;
+    }
+
+    IOReturn ret = (*intf)->WritePipe(intf, pipeRef, (uint8_t*)buf, len);
     if (ret != kIOReturnSuccess) {
         logdebug("WritePipe, err = %08x", ret);
         return -1;

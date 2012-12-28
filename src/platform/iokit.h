@@ -2,6 +2,7 @@
 #define IOKIT_H
 
 #include "usbus.h"
+#include "usbus_limits.h"
 #include <IOKit/usb/IOUSBLib.h>
 
 #ifndef kIOUSBInterfaceInterfaceID197
@@ -27,6 +28,7 @@ struct IOKitDevice {
     IOUSBDeviceInterface_t **dev;
     // XXX: maintain array of interfaces
     IOUSBInterfaceInterface_t **intf;
+    uint8_t epAddresses[USBUS_MAX_ENDPOINTS];   // map endpoint addresses to pipe refs
     CFRunLoopSourceRef runLoopSourceRef;
 };
 
