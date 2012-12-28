@@ -206,15 +206,27 @@ static void deviceDiscoveredCallback(void *p, io_iterator_t iterator)
     io_object_t io;
     while ((io = IOIteratorNext(iterator))) {
 
+        IOUSBDeviceInterface_t **dev;
+        dev = getPluginInterface(io, kIOUSBDeviceUserClientTypeID, kIOUSBDeviceInterfaceID320);
+        IOObjectRelease(io);
+
+        if (!dev) {
+            continue;
+        }
+
+        // filter out hubs - we don't offer any API to do anything interesting with them
+        uint8_t deviceClass;
+        IOReturn r = (*dev)->GetDeviceClass(dev, &deviceClass);
+        if (r != kIOReturnSuccess || deviceClass == UsbusClassHub) {
+            continue;
+        }
+
         UsbusDevice *d = allocateDevice();
         if (d) {
-            d->iokit.dev = getPluginInterface(io, kIOUSBDeviceUserClientTypeID, kIOUSBDeviceInterfaceID320);
-            if (d->iokit.dev) {
-                populateDeviceDetails(d);
-                dispatchConnectedDevice(ctx, d);
-            }
+            d->iokit.dev = dev;
+            populateDeviceDetails(d);
+            dispatchConnectedDevice(ctx, d);
         }
-        IOObjectRelease(io);
     }
 }
 
