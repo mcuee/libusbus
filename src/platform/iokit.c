@@ -636,6 +636,11 @@ int iokitGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, 
 {
     IOUSBInterfaceInterface_t **intf = d->iokit.interfaces[intfIndex].intf;
 
+    if (!intf) {
+        logdebug("iokitGetEndpointDescriptor(): interface %d has not been opened", intfIndex);
+        return UsbusNotOpen;
+    }
+
     UInt8 direction;
     UInt8 number;
     UInt8 transferType;

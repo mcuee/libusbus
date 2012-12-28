@@ -88,6 +88,7 @@ enum UsbusStatus {
     UsbusStalled,
     UsbusOverflow,
     UsbusTimeout,
+    UsbusBadParameter,
     UsbusStatusGenericError
 };
 
@@ -200,7 +201,7 @@ void usbusClose(UsbusDevice *d);
 
 int usbusGetConfigDescriptor(UsbusDevice *d, unsigned index, struct UsbusConfigDescriptor *desc);
 int usbusGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsetting, struct UsbusInterfaceDescriptor *desc);
-int usbusGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, struct UsbusEndpointDescriptor *desc);
+int usbusGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned epIndex, struct UsbusEndpointDescriptor *desc);
 
 int usbusClaimInterface(UsbusDevice *d, unsigned index);
 int usbusReleaseInterface(UsbusDevice *d, unsigned index);

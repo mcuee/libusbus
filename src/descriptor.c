@@ -1,6 +1,8 @@
 
 #include "usbus.h"
 #include "usbus_private.h"
+#include "usbus_limits.h"
+#include "logger.h"
 
 #include <string.h>
 
@@ -28,16 +30,30 @@ int usbusGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsett
         return UsbusNotOpen;
     }
 
+    if (index >= USBUS_MAX_INTERFACES) {
+        return UsbusBadParameter;
+    }
+
     return gPlatform->getInterfaceDescriptor(d, index, altsetting, desc);
 }
 
-int usbusGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, struct UsbusEndpointDescriptor *desc)
+int usbusGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned epIndex, struct UsbusEndpointDescriptor *desc)
 {
     if (!d->isOpen) {
         return UsbusNotOpen;
     }
 
-    return gPlatform->getEndpointDescriptor(d, intfIndex, ep, desc);
+    if (intfIndex >= USBUS_MAX_INTERFACES) {
+        logdebug("usbusGetEndpointDescriptor(): intfIndex (%d) >= USBUS_MAX_INTERFACES", intfIndex);
+        return UsbusBadParameter;
+    }
+
+    if (epIndex >= USBUS_MAX_ENDPOINTS) {
+        logdebug("usbusGetEndpointDescriptor(): epIndex (%d) >= USBUS_MAX_ENDPOINTS", epIndex);
+        return UsbusBadParameter;
+    }
+
+    return gPlatform->getEndpointDescriptor(d, intfIndex, epIndex, desc);
 }
 
 int usbusGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang, uint8_t *buf, unsigned len, unsigned *transferred)
