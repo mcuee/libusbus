@@ -195,6 +195,7 @@ int usbusGetStringDescriptorAscii(UsbusDevice *d, uint8_t index, uint16_t lang,
                                   char *buf, unsigned len, unsigned *transferred);
 
 int  usbusOpen(UsbusDevice *d);
+uint8_t usbusIsOpen(UsbusDevice *d);
 void usbusClose(UsbusDevice *d);
 
 int usbusGetConfigDescriptor(UsbusDevice *d, unsigned index, struct UsbusConfigDescriptor *desc);

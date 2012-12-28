@@ -48,6 +48,11 @@ int usbusOpen(UsbusDevice *d)
     return r;
 }
 
+uint8_t usbusIsOpen(UsbusDevice *d)
+{
+    return d->isOpen;
+}
+
 void usbusClose(UsbusDevice *d)
 {
     if (d->isOpen) {
