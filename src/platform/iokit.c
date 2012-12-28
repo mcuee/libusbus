@@ -98,20 +98,25 @@ static void populateDeviceDetails(UsbusDevice *device)
 }
 
 
-static int pipeRefForEP(UsbusDevice *d, uint8_t ep, uint8_t *pipeRef)
+static int pipeRefForEP(UsbusDevice *d, uint8_t ep, uint8_t *pipeRef, uint8_t *intfIndex)
 {
     /*
      * Helper to map pipe refs to endpoint addresses.
+     * Return the pipeRef and interface index for the given endpoint.
      */
 
     struct IOKitDevice *id = &d->iokit;
 
-    // XXX: will need to iterate through interfaces as well
-    unsigned i;
-    for (i = 0; i < USBUS_MAX_ENDPOINTS; ++i) {
-        if (id->epAddresses[i] == ep) {
-            *pipeRef = i + 1;
-            return UsbusOK;
+    unsigned i, e;
+    for (i = 0; i < USBUS_MAX_INTERFACES; ++i) {
+
+        struct IOKitInterface *ii = &id->interfaces[i];
+        for (e = 0; e < USBUS_MAX_ENDPOINTS; ++e) {
+            if (ii->epAddresses[e] == ep) {
+                *pipeRef = e + 1;
+                *intfIndex = i;
+                return UsbusOK;
+            }
         }
     }
 
@@ -127,7 +132,8 @@ static int populateEPAddressesForInterface(UsbusDevice *d, unsigned index)
      * We cache them for all open interfaces so we don't need to query for each read/write.
      */
 
-    IOUSBInterfaceInterface_t **intf = d->iokit.intf;
+    struct IOKitInterface *ii = &d->iokit.interfaces[index];
+    IOUSBInterfaceInterface_t **intf = ii->intf;
 
     uint8_t numEndpoints;
     IOReturn r = (*intf)->GetNumEndpoints(intf, &numEndpoints);
@@ -149,7 +155,7 @@ static int populateEPAddressesForInterface(UsbusDevice *d, unsigned index)
 
         // reconstruct endpoint address and cache it
         uint8_t ep = ((direction << 7) & 0x80) | (number & 0xf);
-        d->iokit.epAddresses[i - 1] = ep;
+        ii->epAddresses[i - 1] = ep;
     }
 
     return UsbusOK;
@@ -437,8 +443,10 @@ int iokitClaimInterface(UsbusDevice *d, unsigned index)
         }
     }
 
-    d->iokit.intf = getPluginInterface(usbInterface, kIOUSBInterfaceUserClientTypeID, kIOUSBInterfaceInterfaceID197);
-    if (!d->iokit.intf) {
+    struct IOKitInterface *ii = &d->iokit.interfaces[index];
+
+    ii->intf = getPluginInterface(usbInterface, kIOUSBInterfaceUserClientTypeID, kIOUSBInterfaceInterfaceID197);
+    if (!ii->intf) {
         return -1;
     }
 
@@ -447,12 +455,12 @@ int iokitClaimInterface(UsbusDevice *d, unsigned index)
      * the endpoints in the interface descriptor to be instantiated
      */
 
-    IOUSBInterfaceInterface_t **intf = d->iokit.intf;
+    IOUSBInterfaceInterface_t **intf = ii->intf;
     IOReturn r = (*intf)->USBInterfaceOpen(intf);
     if (r != kIOReturnSuccess) {
         logdebug("iokitClaimInterface() USBInterfaceOpen: %08x (%s)", r, iokit_strerror(r));
         (*intf)->Release(intf);
-        d->iokit.intf = 0;
+        ii->intf = 0;
         return -1;
     }
 
@@ -460,13 +468,13 @@ int iokitClaimInterface(UsbusDevice *d, unsigned index)
         return -1;
     }
 
-    r = (*intf)->CreateInterfaceAsyncEventSource(intf, &d->iokit.runLoopSourceRef);
+    r = (*intf)->CreateInterfaceAsyncEventSource(intf, &ii->runLoopSourceRef);
     if (r != kIOReturnSuccess) {
         logdebug("iokitClaimInterface() CreateInterfaceAsyncEventSource: %08x (%s)", r, iokit_strerror(r));
         return -1;
     }
 
-    CFRunLoopAddSource(d->ctx->iokit.runLoopRef, d->iokit.runLoopSourceRef, kCFRunLoopDefaultMode);
+    CFRunLoopAddSource(d->ctx->iokit.runLoopRef, ii->runLoopSourceRef, kCFRunLoopDefaultMode);
 
     return UsbusOK;
 }
@@ -474,16 +482,20 @@ int iokitClaimInterface(UsbusDevice *d, unsigned index)
 
 int iokitReleaseInterface(UsbusDevice *d, unsigned index)
 {
-    IOUSBInterfaceInterface_t** intf = d->iokit.intf;
+    struct IOKitInterface *ii = &d->iokit.interfaces[index];
+    IOUSBInterfaceInterface_t** intf = ii->intf;
 
     if (!intf) {
         // not open? nop
         return UsbusOK;
     }
 
+    CFRunLoopRemoveSource(d->ctx->iokit.runLoopRef, ii->runLoopSourceRef, kCFRunLoopDefaultMode);
+    CFRelease(ii->runLoopSourceRef);
+
     IOReturn r = (*intf)->USBInterfaceClose(intf);
     (*intf)->Release(intf);
-    d->iokit.intf = 0;
+    ii->intf = 0;
     if (r != kIOReturnSuccess) {
         logerror("iokitReleaseInterface() USBInterfaceClose: %08x (%s)", r, iokit_strerror(r));
         return -1;
@@ -535,17 +547,15 @@ int iokitOpen(struct UsbusDevice *device)
 
 void iokitClose(struct UsbusDevice *device)
 {
-    // XXX: cache active interface
-    iokitReleaseInterface(device, 0);
+    unsigned i;
+    for (i = 0; i < USBUS_MAX_INTERFACES; ++i) {
+        iokitReleaseInterface(device, i);
+    }
 
     IOUSBDeviceInterface_t** dev = device->iokit.dev;
     (*dev)->USBDeviceClose(dev);
     (*dev)->Release(dev);
     device->iokit.dev = 0;
-
-    struct IOKitDevice *id = &device->iokit;
-//    CFRunLoopRemoveSource(/* run loop ref */, id->runLoopSourceRef, kCFRunLoopDefaultMode);
-    CFRelease(id->runLoopSourceRef);
 }
 
 
@@ -569,7 +579,7 @@ int iokitGetConfigDescriptor(UsbusDevice *d, unsigned index, struct UsbusConfigD
 int iokitGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsetting, struct UsbusInterfaceDescriptor *desc)
 {
     IOUSBDeviceInterface_t** dev = d->iokit.dev;
-    IOUSBInterfaceInterface_t **intf = d->iokit.intf;
+    IOUSBInterfaceInterface_t **intf = d->iokit.interfaces[index].intf;
 
     // XXX: cache IOUSBConfigurationDescriptorPtr
     IOUSBConfigurationDescriptorPtr cfgDesc;
@@ -612,7 +622,7 @@ int iokitGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsett
 
 int iokitGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, struct UsbusEndpointDescriptor *desc)
 {
-    IOUSBInterfaceInterface_t **intf = d->iokit.intf;
+    IOUSBInterfaceInterface_t **intf = d->iokit.interfaces[intfIndex].intf;
 
     UInt8 direction;
     UInt8 number;
@@ -665,13 +675,13 @@ int iokitSetConfiguration(UsbusDevice *device, uint8_t config)
 
 int iokitSubmitTransfer(struct UsbusTransfer *t)
 {
-    IOReturn r;
-    IOUSBInterfaceInterface_t **intf = t->device->iokit.intf;
-
-    uint8_t pipeRef;
-    if (pipeRefForEP(t->device, t->endpoint, &pipeRef) != UsbusOK) {
+    uint8_t pipeRef, intfIndex;
+    if (pipeRefForEP(t->device, t->endpoint, &pipeRef, &intfIndex) != UsbusOK) {
         return -1;
     }
+
+    IOReturn r;
+    IOUSBInterfaceInterface_t **intf = t->device->iokit.interfaces[intfIndex].intf;
 
     if (usbusTransferIsIN(t)) {
 
@@ -701,7 +711,12 @@ int iokitCancelTransfer(struct UsbusTransfer *t)
      * XXX: may need to look up pipe ref from endpoint value...
      */
 
-    IOUSBInterfaceInterface_t **intf = t->device->iokit.intf;
+    uint8_t pipeRef, intfIndex;
+    if (pipeRefForEP(t->device, t->endpoint, &pipeRef, &intfIndex) != UsbusOK) {
+        return -1;
+    }
+
+    IOUSBInterfaceInterface_t **intf = t->device->iokit.interfaces[intfIndex].intf;
 
     IOReturn r1 = (*intf)->AbortPipe(intf, t->endpoint);
     IOReturn r2 = (*intf)->ClearPipeStallBothEnds(intf, t->endpoint);
@@ -753,12 +768,12 @@ int iokitProcessEvents(UsbusContext *ctx, unsigned timeoutMillis)
 
 int iokitReadSync(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsigned *written)
 {
-    IOUSBInterfaceInterface_t **intf = d->iokit.intf;
-
-    uint8_t pipeRef;
-    if (pipeRefForEP(d, ep, &pipeRef) != UsbusOK) {
+    uint8_t pipeRef, intfIndex;
+    if (pipeRefForEP(d, ep, &pipeRef, &intfIndex) != UsbusOK) {
         return -1;
     }
+
+    IOUSBInterfaceInterface_t **intf = d->iokit.interfaces[intfIndex].intf;
 
     IOReturn ret = (*intf)->ReadPipe(intf, pipeRef, buf, &len);
     if (ret != kIOReturnSuccess) {
@@ -772,12 +787,12 @@ int iokitReadSync(UsbusDevice *d, uint8_t ep, uint8_t *buf, unsigned len, unsign
 
 int iokitWriteSync(UsbusDevice *d, uint8_t ep, const uint8_t *buf, unsigned len, unsigned *written)
 {
-    IOUSBInterfaceInterface_t **intf = d->iokit.intf;
-
-    uint8_t pipeRef;
-    if (pipeRefForEP(d, ep, &pipeRef) != UsbusOK) {
+    uint8_t pipeRef, intfIndex;
+    if (pipeRefForEP(d, ep, &pipeRef, &intfIndex) != UsbusOK) {
         return -1;
     }
+
+    IOUSBInterfaceInterface_t **intf = d->iokit.interfaces[intfIndex].intf;
 
     IOReturn ret = (*intf)->WritePipe(intf, pipeRef, (uint8_t*)buf, len);
     if (ret != kIOReturnSuccess) {

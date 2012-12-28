@@ -24,13 +24,18 @@ struct IOKitContext {
     CFRunLoopRef runLoopRef;
 };
 
+// internal structure for tracking state per interface.
+// only used as a member of IOKitDevice.
+struct IOKitInterface {
+    IOUSBInterfaceInterface_t **intf;           // iokit reference for this interface
+    uint8_t epAddresses[USBUS_MAX_ENDPOINTS];   // map endpoint addresses to pipe refs
+    CFRunLoopSourceRef runLoopSourceRef;        // event source per interface
+};
+
 // iokit-specific potion of UsbusDevice
 struct IOKitDevice {
     IOUSBDeviceInterface_t **dev;
-    // XXX: maintain array of interfaces
-    IOUSBInterfaceInterface_t **intf;
-    uint8_t epAddresses[USBUS_MAX_ENDPOINTS];   // map endpoint addresses to pipe refs
-    CFRunLoopSourceRef runLoopSourceRef;
+    struct IOKitInterface interfaces[USBUS_MAX_INTERFACES];
 };
 
 extern const struct UsbusPlatform platformIOKit;
