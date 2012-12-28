@@ -124,6 +124,12 @@ static int pipeRefForEP(UsbusDevice *d, uint8_t ep, uint8_t *pipeRef, uint8_t *i
     return -1;
 }
 
+static inline uint8_t reconstructEPAddress(uint8_t direction, uint8_t number) {
+    /*
+     * Generate the endpoint address from the values provided by GetPipeProperties()
+     */
+    return ((direction << 7) & 0x80) | (number & 0xf);
+}
 
 static int populateEPAddressesForInterface(UsbusDevice *d, unsigned index)
 {
@@ -153,9 +159,7 @@ static int populateEPAddressesForInterface(UsbusDevice *d, unsigned index)
             return -1;
         }
 
-        // reconstruct endpoint address and cache it
-        uint8_t ep = ((direction << 7) & 0x80) | (number & 0xf);
-        ii->epAddresses[i - 1] = ep;
+        ii->epAddresses[i - 1] = reconstructEPAddress(direction, number);
     }
 
     return UsbusOK;
@@ -304,13 +308,13 @@ static void iokitAsyncIOCallback(void *refcon, IOReturn result, void *arg0)
 }
 
 
-static int getInterface(IOUSBDeviceInterface_t **dev, uint8_t index, io_service_t *usbInterface)
+static io_service_t getIOInterface(IOUSBDeviceInterface_t **dev, uint8_t index)
 {
     /*
      * Look up the interface at the given index.
      */
 
-    *usbInterface = IO_OBJECT_NULL;
+    io_service_t usbInterface = IO_OBJECT_NULL;
 
     IOUSBFindInterfaceRequest req;
     req.bInterfaceClass    = kIOUSBFindInterfaceDontCare;
@@ -321,19 +325,19 @@ static int getInterface(IOUSBDeviceInterface_t **dev, uint8_t index, io_service_
     io_iterator_t it;
     IOReturn r = (*dev)->CreateInterfaceIterator(dev, &req, &it);
     if (r != kIOReturnSuccess) {
-        return -1;
+        return IO_OBJECT_NULL;
     }
 
     uint8_t i;
-    for (i = 0 ; i <= index ; ++i) {
-        *usbInterface = IOIteratorNext(it);
-        if (i != index) {
-            IOObjectRelease(*usbInterface);
+    for (i = 0; (usbInterface = IOIteratorNext(it)); ++i) {
+        if (i == index) {
+            break;
         }
+        IOObjectRelease(usbInterface);
     }
 
     IOObjectRelease(it);
-    return UsbusOK;
+    return usbInterface;
 }
 
 
@@ -431,33 +435,14 @@ int iokitClaimInterface(UsbusDevice *d, unsigned index)
 
     IOUSBDeviceInterface_t **dev = d->iokit.dev;
 
-    io_service_t usbInterface;
-    if (getInterface(dev, index, &usbInterface) != UsbusOK) {
+    io_service_t ioInterface = getIOInterface(dev, index);
+    if (ioInterface == IO_OBJECT_NULL) {
         return -1;
-    }
-
-    if (!usbInterface) {
-        /*
-         * If there's no interface yet, set the default/first configuration
-         * and try again.
-         */
-
-        IOUSBConfigurationDescriptorPtr configDesc;
-        IOReturn r = (*dev)->GetConfigurationDescriptorPtr(dev, 0, &configDesc);
-        uint8_t config = (kIOReturnSuccess == r) ? configDesc->bConfigurationValue : 1;
-
-        if (iokitSetConfiguration(d, config) != UsbusOK) {
-            return -1;
-        }
-
-        if (getInterface(dev, index, &usbInterface) != UsbusOK) {
-            return -1;
-        }
     }
 
     struct IOKitInterface *ii = &d->iokit.interfaces[index];
 
-    ii->intf = getPluginInterface(usbInterface, kIOUSBInterfaceUserClientTypeID, kIOUSBInterfaceInterfaceID197);
+    ii->intf = getPluginInterface(ioInterface, kIOUSBInterfaceUserClientTypeID, kIOUSBInterfaceInterfaceID197);
     if (!ii->intf) {
         return -1;
     }
@@ -541,33 +526,60 @@ int iokitGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang,
 }
 
 
-int iokitOpen(struct UsbusDevice *device)
+int iokitOpen(struct UsbusDevice *d)
 {
-    IOUSBDeviceInterface_t** dev = device->iokit.dev;
+    /*
+     * Open the device, and set its default configuration
+     * if the OS has not already applied it.
+     */
 
-    IOReturn ret = (*dev)->USBDeviceOpenSeize(dev);
-    if (ret != kIOReturnSuccess) {
-        logdebug("Unable to open device: %08x (%s)", ret, iokit_strerror(ret));
-        (void) (*dev)->Release(dev);
-        device->isOpen = false;
+    IOUSBDeviceInterface_t** dev = d->iokit.dev;
+
+    IOReturn r = (*dev)->GetConfigurationDescriptorPtr(dev, 0, &d->iokit.cfgDesc);
+    if (r != kIOReturnSuccess) {
+        logdebug("iokitOpen() GetConfigurationDescriptorPtr: %08x (%s)", r, iokit_strerror(r));
         return -1;
+    }
+
+    uint8_t config;
+    r = (*dev)->GetConfiguration(dev, &config);
+    if (r != kIOReturnSuccess) {
+        logdebug("iokitOpen() GetConfiguration: %08x (%s)", r, iokit_strerror(r));
+        return -1;
+    }
+
+    r = (*dev)->USBDeviceOpenSeize(dev);
+    if (r != kIOReturnSuccess) {
+        logdebug("Unable to open device: %08x (%s)", r, iokit_strerror(r));
+        (void) (*dev)->Release(dev);
+        d->isOpen = false;
+        return -1;
+    }
+
+    // need to apply configuration?
+    if (config != d->iokit.cfgDesc->bConfigurationValue) {
+        r = (*dev)->SetConfiguration(dev, d->iokit.cfgDesc->bConfigurationValue);
+        if (r != kIOReturnSuccess) {
+            logdebug("iokitOpen() GetConfiguration: %08x (%s)", r, iokit_strerror(r));
+            return -1;
+        }
     }
 
     return UsbusOK;
 }
 
 
-void iokitClose(struct UsbusDevice *device)
+void iokitClose(struct UsbusDevice *d)
 {
     unsigned i;
     for (i = 0; i < USBUS_MAX_INTERFACES; ++i) {
-        iokitReleaseInterface(device, i);
+        iokitReleaseInterface(d, i);
     }
 
-    IOUSBDeviceInterface_t** dev = device->iokit.dev;
+    IOUSBDeviceInterface_t** dev = d->iokit.dev;
     (*dev)->USBDeviceClose(dev);
     (*dev)->Release(dev);
-    device->iokit.dev = 0;
+    d->iokit.dev = 0;
 }
 
 
@@ -590,27 +602,28 @@ int iokitGetConfigDescriptor(UsbusDevice *d, unsigned index, struct UsbusConfigD
 
 int iokitGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsetting, struct UsbusInterfaceDescriptor *desc)
 {
-    IOUSBDeviceInterface_t** dev = d->iokit.dev;
+    IOUSBConfigurationDescriptorPtr cfgDesc = d->iokit.cfgDesc;
     IOUSBInterfaceInterface_t **intf = d->iokit.interfaces[index].intf;
 
-    // XXX: cache IOUSBConfigurationDescriptorPtr
-    IOUSBConfigurationDescriptorPtr cfgDesc;
-    IOReturn r = (*dev)->GetConfigurationDescriptorPtr(dev, index, &cfgDesc);
-    if (r != kIOReturnSuccess) {
-        logdebug("iokitGetConfigDescriptor() GetConfigurationDescriptorPtr: %08x (%s)", r, iokit_strerror(r));
-        return -1;
+    if (!intf) {
+        logdebug("iokitGetInterfaceDescriptor(): interface %d has not been opened", index);
+        return UsbusNotOpen;
     }
+
+    /*
+     * The configuration descriptor is a variable sized struct - step past
+     * the initial portion and iterate through any interface descriptors
+     * that follow it.
+     */
 
     uint8_t *p = (uint8_t*)cfgDesc;
     uint8_t *pend = p + USBToHostWord(cfgDesc->wTotalLength);
 
     // get details for the interface we're looking for
-    uint8_t interfaceNumber, alternateSetting;
-    IOReturn r1 = (*intf)->GetInterfaceNumber(intf, &interfaceNumber);
-    IOReturn r2 = (*intf)->GetAlternateSetting(intf, &alternateSetting);
-    if (r1 != kIOReturnSuccess || r2 != kIOReturnSuccess) {
-        logdebug("iokitGetInterfaceDescriptor() GetInterfaceNumber: %08x (%s)", r1, iokit_strerror(r1));
-        logdebug("iokitGetInterfaceDescriptor() GetAlternateSetting: %08x (%s)", r2, iokit_strerror(r2));
+    uint8_t interfaceNumber;
+    IOReturn r = (*intf)->GetInterfaceNumber(intf, &interfaceNumber);
+    if (r != kIOReturnSuccess) {
+        logdebug("iokitGetInterfaceDescriptor() GetInterfaceNumber: %08x (%s)", r, iokit_strerror(r));
         return -1;
     }
 
@@ -619,7 +632,7 @@ int iokitGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsett
         IOUSBInterfaceDescriptor *intfDesc = (IOUSBInterfaceDescriptor*)p;
         if (intfDesc->bDescriptorType == kUSBInterfaceDesc &&
             intfDesc->bInterfaceNumber == interfaceNumber &&
-            intfDesc->bAlternateSetting == alternateSetting)
+            intfDesc->bAlternateSetting == altsetting)
         {
             memcpy(desc, intfDesc, sizeof(*desc));
             found = 1;
@@ -641,11 +654,8 @@ int iokitGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, 
         return UsbusNotOpen;
     }
 
-    UInt8 direction;
-    UInt8 number;
-    UInt8 transferType;
     UInt16 maxPacketSize;
-    UInt8 interval;
+    UInt8 direction, number, transferType, interval;
 
     IOReturn r = (*intf)->GetPipeProperties(intf, ep, &direction, &number, &transferType, &maxPacketSize, &interval);
     if (r != kIOReturnSuccess) {
@@ -657,7 +667,7 @@ int iokitGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, 
     desc->bDescriptorType = UsbusDescriptorEndpoint;
     desc->bInterval = interval;
     desc->wMaxPacketSize = maxPacketSize;
-    desc->bEndpointAddress = (direction << 7) | number;
+    desc->bEndpointAddress = reconstructEPAddress(direction, number);
     desc->bmAttributes = transferType & 0x3;    // bits 0..1 specify transfer type
 
     return UsbusOK;

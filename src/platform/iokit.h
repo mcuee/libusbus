@@ -35,6 +35,7 @@ struct IOKitInterface {
 // iokit-specific potion of UsbusDevice
 struct IOKitDevice {
     IOUSBDeviceInterface_t **dev;
+    IOUSBConfigurationDescriptorPtr cfgDesc;
     struct IOKitInterface interfaces[USBUS_MAX_INTERFACES];
 };
 
@@ -46,8 +47,8 @@ void iokitStopListen(UsbusContext *ctx);
 int iokitGetStringDescriptor(UsbusDevice *d, uint8_t index, uint16_t lang,
                               uint8_t *buf, unsigned len, unsigned *transferred);
 
-int iokitOpen(UsbusDevice *device);
-void iokitClose(UsbusDevice *device);
+int  iokitOpen(UsbusDevice *d);
+void iokitClose(UsbusDevice *d);
 
 int iokitGetConfigDescriptor(UsbusDevice *d, unsigned index, struct UsbusConfigDescriptor *desc);
 int iokitGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsetting, struct UsbusInterfaceDescriptor *desc);
