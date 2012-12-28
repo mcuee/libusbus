@@ -2,6 +2,7 @@
 #define WINUSB_H
 
 #include "usbus.h"
+#include "usbus_limits.h"
 
 #ifndef WINVER
 #define WINVER 0x502    // declare at least WinXP support
@@ -10,8 +11,6 @@
 #include <Windows.h>
 
 #include <winusb.h>
-
-#define MAX_WINUSB_INTERFACE_HANDLES    32
 
 // winusb-specific potion of UsbusContext
 struct WinUSBContext {
@@ -26,7 +25,7 @@ struct WinUSBDevice {
     // we maintain an array of interface handles such that we can respond to descriptor requests for any interface,
     // but we currently only allow reading/writing to a single "open" interface at a time.
     // WinUSB always opens the first interface by default in WinUSB_Initialize().
-    WINUSB_INTERFACE_HANDLE winusbHandles[MAX_WINUSB_INTERFACE_HANDLES];
+    WINUSB_INTERFACE_HANDLE winusbHandles[USBUS_MAX_INTERFACES];
 };
 
 // struct to track transfers through IOCP.

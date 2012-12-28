@@ -288,7 +288,7 @@ int winusbReleaseInterface(UsbusDevice *d, unsigned index)
 {
     struct WinUSBDevice *wd = &d->winusb;
 
-    if (index >= MAX_WINUSB_INTERFACE_HANDLES) {
+    if (index >= ARRAYSIZE(wd->winusbHandles)) {
         logdebug("winusbGetEndpointDescriptor(): interface index %d is too high\n", index);
         return -1;
     }
