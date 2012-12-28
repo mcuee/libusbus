@@ -1,0 +1,16 @@
+#ifndef USBUS_LIMITS_H
+#define USBUS_LIMITS_H
+
+#ifndef USBUS_MAX_CONFIGURATIONS
+#define USBUS_MAX_CONFIGURATIONS    8
+#endif
+
+#ifndef USBUS_MAX_ENDPOINTS
+#define USBUS_MAX_ENDPOINTS         32
+#endif
+
+#ifndef USBUS_MAX_INTERFACES
+#define USBUS_MAX_INTERFACES        32
+#endif
+
+#endif // USBUS_LIMITS_H
