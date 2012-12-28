@@ -21,6 +21,7 @@ typedef IOUSBInterfaceInterface197 IOUSBInterfaceInterface_t;
 struct IOKitContext {
     IONotificationPortRef portRef;
     CFRunLoopSourceRef notificationRunLoopSourceRef;
+    CFRunLoopRef runLoopRef;
 };
 
 // iokit-specific potion of UsbusDevice

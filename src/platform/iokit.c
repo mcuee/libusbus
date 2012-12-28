@@ -326,17 +326,26 @@ int iokitListen(UsbusContext *ctx)
 
     struct IOKitContext *iokitCtx = &ctx->iokit;
 
+    if (iokitCtx->portRef != NULL) {
+        loginfo("usbusListen called on context that's already listening.");
+        return UsbusOK;
+    }
+
     iokitCtx->portRef = IONotificationPortCreate(kIOMasterPortDefault);
     if (iokitCtx->portRef == NULL) {
         logerror("IONotificationPortCreate return a NULL IONotificationPortRef.");
         return -1;
     }
 
+    iokitCtx->runLoopRef = (CFRunLoopRef)CFRetain(CFRunLoopGetCurrent());
+
     iokitCtx->notificationRunLoopSourceRef = IONotificationPortGetRunLoopSource(iokitCtx->portRef);
     if (iokitCtx->notificationRunLoopSourceRef == NULL) {
         logerror("IONotificationPortGetRunLoopSource returned NULL CFRunLoopSourceRef.");
         return -1;
     }
+
+    CFRunLoopAddSource(iokitCtx->runLoopRef, iokitCtx->notificationRunLoopSourceRef, kCFRunLoopDefaultMode);
 
     // usb device matching
     CFMutableDictionaryRef classesToMatch = IOServiceMatching(kIOUSBDeviceClassName);
@@ -347,7 +356,7 @@ int iokitListen(UsbusContext *ctx)
 
     // Retain an additional reference since each call to
     // IOServiceAddMatchingNotification consumes one.
-    classesToMatch = (CFMutableDictionaryRef) CFRetain(classesToMatch);
+    classesToMatch = (CFMutableDictionaryRef)CFRetain(classesToMatch);
 
     kr = IOServiceAddMatchingNotification(iokitCtx->portRef,
                                           kIOMatchedNotification,
@@ -443,6 +452,18 @@ int iokitClaimInterface(UsbusDevice *d, unsigned index)
         return -1;
     }
 
+    if (populateEPAddressesForInterface(d, index) != UsbusOK) {
+        return -1;
+    }
+
+    r = (*intf)->CreateInterfaceAsyncEventSource(intf, &d->iokit.runLoopSourceRef);
+    if (r != kIOReturnSuccess) {
+        logdebug("iokitClaimInterface() CreateInterfaceAsyncEventSource: %08x (%s)", r, iokit_sterror(r));
+        return -1;
+    }
+
+    CFRunLoopAddSource(d->ctx->iokit.runLoopRef, d->iokit.runLoopSourceRef, kCFRunLoopDefaultMode);
+
     return UsbusOK;
 }
 
@@ -501,12 +522,6 @@ int iokitOpen(struct UsbusDevice *device)
         logdebug("Unable to open device: %08x (%s)", ret, iokit_sterror(ret));
         (void) (*dev)->Release(dev);
         device->isOpen = false;
-        return -1;
-    }
-
-    ret = (*dev)->CreateDeviceAsyncEventSource(dev, &device->iokit.runLoopSourceRef);
-    if (ret != kIOReturnSuccess) {
-        logdebug("iokitOpen() CreateDeviceAsyncEventSource: %08x (%s)", ret, iokit_sterror(ret));
         return -1;
     }
 
@@ -702,6 +717,31 @@ int iokitProcessEvents(UsbusContext *ctx, unsigned timeoutMillis)
      * (depending on the context we're called in) with the sources of both
      * the connect/disconnect notifier and any devices?
      */
+
+    if (CFRunLoopGetCurrent() != ctx->iokit.runLoopRef) {
+        logwarn("running usbusProcessEvents() on a thread other"
+                "than usbusListen() was called on. No events will be dispatched\n");
+    }
+
+    CFTimeInterval seconds = (CFTimeInterval)timeoutMillis / (CFTimeInterval)1000.0;
+    SInt32 r = CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, true);
+
+    switch (r) {
+    case kCFRunLoopRunFinished:
+        break;
+
+    case kCFRunLoopRunStopped:
+        break;
+
+    case kCFRunLoopRunTimedOut:
+        break;
+
+    case kCFRunLoopRunHandledSource:
+        break;
+
+    default:
+        break;
+    }
 
     return UsbusOK;
 }
