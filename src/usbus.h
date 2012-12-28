@@ -126,6 +126,27 @@ enum UsbusDescriptorType {
     UsbusDescriptorSuperSpeedHub    = 0x2A
 };
 
+enum UsbusDeviceClass {
+    UsbusClassPerInterface          = 0x0,
+    UsbusClassAudio                 = 0x1,
+    UsbusClassComm                  = 0x2,
+    UsbusClassHID                   = 0x3,
+    UsbusClassPhysical              = 0x5,
+    UsbusClassImage                 = 0x6,
+    UsbusClassPrinter               = 0x7,
+    UsbusClassMassStorage           = 0x8,
+    UsbusClassHub                   = 0x9,
+    UsbusClassData                  = 0x10,
+    UsbusClassSmartCard             = 0x0b,
+    UsbusClassContentSecurity       = 0x0d,
+    UsbusClassVideo                 = 0x0e,
+    UsbusClassPersonalHealthcare    = 0x0f,
+    UsbusClassDiagnosticDevice      = 0xdc,
+    UsbusClassWireless              = 0xe0,
+    UsbusClassApplication           = 0xfe,
+    UsbusClassVendorSpecific        = 0xff
+};
+
 // opaque types
 struct UsbusContext;
 typedef struct UsbusContext UsbusContext;
