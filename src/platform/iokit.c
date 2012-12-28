@@ -1,8 +1,9 @@
 
-#include "platform/iokit.h"
 #include "usbus.h"
 #include "usbus_private.h"
+#include "platform/iokit.h"
 #include "logger.h"
+
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOCFPlugIn.h>
 
@@ -31,7 +32,7 @@ const struct UsbusPlatform platformIOKit = {
  *  Internal routines
  ************************************************/
 
-static const char* iokit_sterror(IOReturn ret)
+static const char* iokit_strerror(IOReturn ret)
 {
     switch (ret) {
     // selection of return values from IOReturn.h - add more as needed
@@ -50,6 +51,8 @@ static const char* iokit_sterror(IOReturn ret)
     case kIOReturnBusy:             return "Device Busy";
     case kIOReturnTimeout:          return "I/O Timeout";
     case kIOReturnNotResponding:    return "device not responding";
+    case kIOUSBUnknownPipeErr:      return "unknown pipe ref";
+    case kIOUSBPipeStalled:         return "Pipe has stalled, error needs to be cleared";
     default:                        return "unknown";
     }
 }
@@ -129,7 +132,7 @@ static int populateEPAddressesForInterface(UsbusDevice *d, unsigned index)
     uint8_t numEndpoints;
     IOReturn r = (*intf)->GetNumEndpoints(intf, &numEndpoints);
     if (r) {
-        logerror("populateEPAddressesForInterface() GetNumEndpoints: %08x (%s)", r, iokit_sterror(r));
+        logerror("populateEPAddressesForInterface() GetNumEndpoints: %08x (%s)", r, iokit_strerror(r));
         return -1;
     }
 
@@ -140,7 +143,7 @@ static int populateEPAddressesForInterface(UsbusDevice *d, unsigned index)
         uint8_t direction, number, transferType, interval;
         r = (*intf)->GetPipeProperties(intf, i, &direction, &number, &transferType, &maxPacket, &interval);
         if (r != kIOReturnSuccess) {
-            logerror("populateEPAddressesForInterface() GetPipeProperties: %08x (%s)", r, iokit_sterror(r));
+            logerror("populateEPAddressesForInterface() GetPipeProperties: %08x (%s)", r, iokit_strerror(r));
             return -1;
         }
 
@@ -170,7 +173,7 @@ static void* getPluginInterface(io_object_t iodev, CFUUIDRef type, CFUUIDRef uui
                                                           &plugin,
                                                           &score);
     if (r != kIOReturnSuccess || plugin == 0) {
-        logerror("failed to create plugin: 0x%08x (%s)", r, iokit_sterror(r));
+        logerror("failed to create plugin: 0x%08x (%s)", r, iokit_strerror(r));
         return NULL;
     }
 
@@ -273,6 +276,7 @@ static void iokitAsyncIOCallback(void *refcon, IOReturn result, void *arg0)
 
     default:
         status = UsbusStatusGenericError;
+        logdebug("unknown transfer status: %08x", result);
         break;
     }
 
@@ -446,7 +450,7 @@ int iokitClaimInterface(UsbusDevice *d, unsigned index)
     IOUSBInterfaceInterface_t **intf = d->iokit.intf;
     IOReturn r = (*intf)->USBInterfaceOpen(intf);
     if (r != kIOReturnSuccess) {
-        logdebug("iokitClaimInterface() USBInterfaceOpen: %08x (%s)", r, iokit_sterror(r));
+        logdebug("iokitClaimInterface() USBInterfaceOpen: %08x (%s)", r, iokit_strerror(r));
         (*intf)->Release(intf);
         d->iokit.intf = 0;
         return -1;
@@ -458,7 +462,7 @@ int iokitClaimInterface(UsbusDevice *d, unsigned index)
 
     r = (*intf)->CreateInterfaceAsyncEventSource(intf, &d->iokit.runLoopSourceRef);
     if (r != kIOReturnSuccess) {
-        logdebug("iokitClaimInterface() CreateInterfaceAsyncEventSource: %08x (%s)", r, iokit_sterror(r));
+        logdebug("iokitClaimInterface() CreateInterfaceAsyncEventSource: %08x (%s)", r, iokit_strerror(r));
         return -1;
     }
 
@@ -481,7 +485,7 @@ int iokitReleaseInterface(UsbusDevice *d, unsigned index)
     (*intf)->Release(intf);
     d->iokit.intf = 0;
     if (r != kIOReturnSuccess) {
-        logerror("iokitReleaseInterface() USBInterfaceClose: %08x (%s)", r, iokit_sterror(r));
+        logerror("iokitReleaseInterface() USBInterfaceClose: %08x (%s)", r, iokit_strerror(r));
         return -1;
     }
 
@@ -519,7 +523,7 @@ int iokitOpen(struct UsbusDevice *device)
 
     IOReturn ret = (*dev)->USBDeviceOpenSeize(dev);
     if (ret != kIOReturnSuccess) {
-        logdebug("Unable to open device: %08x (%s)", ret, iokit_sterror(ret));
+        logdebug("Unable to open device: %08x (%s)", ret, iokit_strerror(ret));
         (void) (*dev)->Release(dev);
         device->isOpen = false;
         return -1;
@@ -552,7 +556,7 @@ int iokitGetConfigDescriptor(UsbusDevice *d, unsigned index, struct UsbusConfigD
     IOUSBConfigurationDescriptorPtr cfgDesc;
     IOReturn r = (*dev)->GetConfigurationDescriptorPtr(dev, index, &cfgDesc);
     if (r != kIOReturnSuccess) {
-        logdebug("iokitGetConfigDescriptor() GetConfigurationDescriptorPtr: %08x (%s)", r, iokit_sterror(r));
+        logdebug("iokitGetConfigDescriptor() GetConfigurationDescriptorPtr: %08x (%s)", r, iokit_strerror(r));
         return -1;
     }
 
@@ -571,7 +575,7 @@ int iokitGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsett
     IOUSBConfigurationDescriptorPtr cfgDesc;
     IOReturn r = (*dev)->GetConfigurationDescriptorPtr(dev, index, &cfgDesc);
     if (r != kIOReturnSuccess) {
-        logdebug("iokitGetConfigDescriptor() GetConfigurationDescriptorPtr: %08x (%s)", r, iokit_sterror(r));
+        logdebug("iokitGetConfigDescriptor() GetConfigurationDescriptorPtr: %08x (%s)", r, iokit_strerror(r));
         return -1;
     }
 
@@ -583,8 +587,8 @@ int iokitGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsett
     IOReturn r1 = (*intf)->GetInterfaceNumber(intf, &interfaceNumber);
     IOReturn r2 = (*intf)->GetAlternateSetting(intf, &alternateSetting);
     if (r1 != kIOReturnSuccess || r2 != kIOReturnSuccess) {
-        logdebug("iokitGetInterfaceDescriptor() GetInterfaceNumber: %08x (%s)", r1, iokit_sterror(r1));
-        logdebug("iokitGetInterfaceDescriptor() GetAlternateSetting: %08x (%s)", r2, iokit_sterror(r2));
+        logdebug("iokitGetInterfaceDescriptor() GetInterfaceNumber: %08x (%s)", r1, iokit_strerror(r1));
+        logdebug("iokitGetInterfaceDescriptor() GetAlternateSetting: %08x (%s)", r2, iokit_strerror(r2));
         return -1;
     }
 
@@ -618,7 +622,7 @@ int iokitGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, 
 
     IOReturn r = (*intf)->GetPipeProperties(intf, ep, &direction, &number, &transferType, &maxPacketSize, &interval);
     if (r != kIOReturnSuccess) {
-        logdebug("iokitGetEndpointDescriptor() GetPipeProperties: %08x (%s)", r, iokit_sterror(r));
+        logdebug("iokitGetEndpointDescriptor() GetPipeProperties: %08x (%s)", r, iokit_strerror(r));
         return -1;
     }
 
@@ -639,7 +643,7 @@ int iokitGetConfiguration(UsbusDevice *device, uint8_t *config)
 
     IOReturn ret = (*dev)->GetConfiguration(dev, config);
     if (ret != kIOReturnSuccess) {
-        logdebug("Couldn’t get configuration, %08x (%s)", ret, iokit_sterror(ret));
+        logdebug("Couldn’t get configuration, %08x (%s)", ret, iokit_strerror(ret));
         return -1;
     }
 
@@ -673,7 +677,7 @@ int iokitSubmitTransfer(struct UsbusTransfer *t)
 
         r = (*intf)->ReadPipeAsync(intf, pipeRef, t->buffer, t->requestedLength, iokitAsyncIOCallback, t);
         if (r != kIOReturnSuccess) {
-            logdebug("iokitSubmitTransfer() ReadPipeAsync: %08x (%s)", r, iokit_sterror(r));
+            logdebug("iokitSubmitTransfer() ReadPipeAsync: %08x (%s)", r, iokit_strerror(r));
             return -1;
         }
 
@@ -681,7 +685,7 @@ int iokitSubmitTransfer(struct UsbusTransfer *t)
 
         r = (*intf)->WritePipeAsync(intf, pipeRef, t->buffer, t->requestedLength, iokitAsyncIOCallback, t);
         if (r != kIOReturnSuccess) {
-            logdebug("iokitSubmitTransfer() WritePipeAsync: %08x (%s)", r, iokit_sterror(r));
+            logdebug("iokitSubmitTransfer() WritePipeAsync: %08x (%s)", r, iokit_strerror(r));
             return -1;
         }
     }
