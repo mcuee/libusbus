@@ -62,23 +62,23 @@ void usbusClose(UsbusDevice *d)
 }
 
 
-int usbusClaimInterface(UsbusDevice *d, unsigned index)
+int usbusOpenInterface(UsbusDevice *d, unsigned index)
 {
     if (!d->isOpen) {
         return UsbusNotOpen;
     }
 
-    return gPlatform->claimInterface(d, index);
+    return gPlatform->openInterface(d, index);
 }
 
 
-int usbusReleaseInterface(UsbusDevice *d, unsigned index)
+int usbusCloseInterface(UsbusDevice *d, unsigned index)
 {
     if (!d->isOpen) {
         return UsbusNotOpen;
     }
 
-    return gPlatform->releaseInterface(d, index);
+    return gPlatform->closeInterface(d, index);
 }
 
 

@@ -64,7 +64,7 @@ void onDeviceConnected(struct UsbusDevice *d, uint8_t* dispose)
     printf("connect: vid 0x%x, pid 0x%x\n", desc.idVendor, desc.idProduct);
 
     if (desc.idVendor == devInfo.vid && desc.idProduct == devInfo.pid) {
-        if (usbusOpen(d) == UsbusOK && usbusClaimInterface(d, 0) == UsbusOK) {
+        if (usbusOpen(d) == UsbusOK && usbusOpenInterface(d, 0) == UsbusOK) {
             *dispose = 0;
             gDevice = d;
         }

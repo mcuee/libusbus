@@ -54,8 +54,8 @@ int iokitGetConfigDescriptor(UsbusDevice *d, unsigned index, struct UsbusConfigD
 int iokitGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsetting, struct UsbusInterfaceDescriptor *desc);
 int iokitGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep, struct UsbusEndpointDescriptor *desc);
 
-int iokitClaimInterface(UsbusDevice *d, unsigned index);
-int iokitReleaseInterface(UsbusDevice *d, unsigned index);
+int iokitOpenInterface(UsbusDevice *d, unsigned index);
+int iokitCloseInterface(UsbusDevice *d, unsigned index);
 
 int iokitGetConfiguration(UsbusDevice *device, uint8_t *config);
 int iokitSetConfiguration(UsbusDevice *device, uint8_t config);

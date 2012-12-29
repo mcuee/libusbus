@@ -17,8 +17,8 @@ const struct UsbusPlatform platformIOKit = {
     iokitGetConfigDescriptor,
     iokitGetInterfaceDescriptor,
     iokitGetEndpointDescriptor,
-    iokitClaimInterface,
-    iokitReleaseInterface,
+    iokitOpenInterface,
+    iokitCloseInterface,
     iokitGetConfiguration,
     iokitSetConfiguration,
     iokitSubmitTransfer,
@@ -426,7 +426,7 @@ void iokitStopListen(struct UsbusContext *ctx)
 }
 
 
-int iokitClaimInterface(UsbusDevice *d, unsigned index)
+int iokitOpenInterface(UsbusDevice *d, unsigned index)
 {
     /*
      * Platform specific implementation of usbusClaimInterface().
@@ -477,7 +477,7 @@ int iokitClaimInterface(UsbusDevice *d, unsigned index)
 }
 
 
-int iokitReleaseInterface(UsbusDevice *d, unsigned index)
+int iokitCloseInterface(UsbusDevice *d, unsigned index)
 {
     struct IOKitInterface *ii = &d->iokit.interfaces[index];
     IOUSBInterfaceInterface_t** intf = ii->intf;
@@ -573,7 +573,7 @@ void iokitClose(struct UsbusDevice *d)
 {
     unsigned i;
     for (i = 0; i < USBUS_MAX_INTERFACES; ++i) {
-        iokitReleaseInterface(d, i);
+        iokitCloseInterface(d, i);
     }
 
     IOUSBDeviceInterface_t** dev = d->iokit.dev;

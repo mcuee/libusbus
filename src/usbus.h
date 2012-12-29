@@ -203,8 +203,8 @@ int usbusGetConfigDescriptor(UsbusDevice *d, unsigned index, struct UsbusConfigD
 int usbusGetInterfaceDescriptor(UsbusDevice *d, unsigned index, unsigned altsetting, struct UsbusInterfaceDescriptor *desc);
 int usbusGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned epIndex, struct UsbusEndpointDescriptor *desc);
 
-int usbusClaimInterface(UsbusDevice *d, unsigned index);
-int usbusReleaseInterface(UsbusDevice *d, unsigned index);
+int usbusOpenInterface(UsbusDevice *d, unsigned index);
+int usbusCloseInterface(UsbusDevice *d, unsigned index);
 
 void usbusDispose(UsbusDevice *d);
 

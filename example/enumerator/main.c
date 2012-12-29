@@ -75,7 +75,7 @@ void dumpDeviceInfo(UsbusDevice *d, struct UsbusDeviceDescriptor *desc)
         unsigned i;
         for (i = 0; i < cfgDesc.bNumInterfaces; ++i) {
 
-            if (usbusClaimInterface(d, i) != UsbusOK) {
+            if (usbusOpenInterface(d, i) != UsbusOK) {
                 continue;
             }
 
@@ -101,7 +101,7 @@ void dumpDeviceInfo(UsbusDevice *d, struct UsbusDeviceDescriptor *desc)
                        e, epDesc.bEndpointAddress, epDesc.bInterval, epDesc.wMaxPacketSize);
             }
 
-            usbusReleaseInterface(d, i);
+            usbusCloseInterface(d, i);
         }
     }
 

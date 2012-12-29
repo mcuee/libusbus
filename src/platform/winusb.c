@@ -35,8 +35,8 @@ const struct UsbusPlatform platformWinUSB = {
     winusbGetConfigDescriptor,
     winusbGetInterfaceDescriptor,
     winusbGetEndpointDescriptor,
-    winusbClaimInterface,
-    winusbReleaseInterface,
+    winusbOpenInterface,
+    winusbCloseInterface,
     winusbGetConfiguration,
     winusbSetConfiguration,
     winusbSubmitTransfer,
@@ -261,7 +261,7 @@ int winusbGetEndpointDescriptor(UsbusDevice *d, unsigned intfIndex, unsigned ep,
     return UsbusOK;
 }
 
-int winusbClaimInterface(UsbusDevice *d, unsigned index)
+int winusbOpenInterface(UsbusDevice *d, unsigned index)
 {
     struct WinUSBDevice *wd = &d->winusb;
 
@@ -284,7 +284,7 @@ int winusbClaimInterface(UsbusDevice *d, unsigned index)
     return UsbusOK;
 }
 
-int winusbReleaseInterface(UsbusDevice *d, unsigned index)
+int winusbCloseInterface(UsbusDevice *d, unsigned index)
 {
     struct WinUSBDevice *wd = &d->winusb;
 
