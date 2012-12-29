@@ -10,10 +10,10 @@ project "usbus"
     includedirs { "src" }
 
     if os.is("macosx") then
-        defines { "PLATFORM_OSX" }
+        defines { "USBUS_PLATFORM_OSX" }
         files { "src/platform/iokit.c" }
     elseif os.is("windows") then
-        defines { "PLATFORM_WIN" }
+        defines { "USBUS_PLATFORM_WIN" }
         files { "src/platform/winusb.c" }
     end
 

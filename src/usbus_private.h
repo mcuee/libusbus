@@ -3,9 +3,9 @@
 
 #include "usbus.h"
 
-#if defined(PLATFORM_OSX)
+#if defined(USBUS_PLATFORM_OSX)
 #include "platform/iokit.h"
-#elif defined(PLATFORM_WIN)
+#elif defined(USBUS_PLATFORM_WIN)
 #include "platform/winusb.h"
 #endif
 
@@ -13,9 +13,9 @@ struct UsbusContext {
     UsbusDeviceConnectedCallback connected;
     UsbusDeviceDisconnectedCallback disconnected;
 
-#if defined(PLATFORM_OSX)
+#if defined(USBUS_PLATFORM_OSX)
     struct IOKitContext iokit;
-#elif defined(PLATFORM_WIN)
+#elif defined(USBUS_PLATFORM_WIN)
     struct WinUSBContext winusb;
 #endif
 };
@@ -35,9 +35,9 @@ struct UsbusDevice {
     //    struct list_head list;
     unsigned long session_data;
 
-#if defined(PLATFORM_OSX)
+#if defined(USBUS_PLATFORM_OSX)
     struct IOKitDevice iokit;
-#elif defined(PLATFORM_WIN)
+#elif defined(USBUS_PLATFORM_WIN)
     struct WinUSBDevice winusb;
 #endif
 };

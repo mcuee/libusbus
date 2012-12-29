@@ -6,9 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(PLATFORM_OSX)
+#if defined(USBUS_PLATFORM_OSX)
     const struct UsbusPlatform * const gPlatform = &platformIOKit;
-#elif defined(PLATFORM_WIN)
+#elif defined(USBUS_PLATFORM_WIN)
     const struct UsbusPlatform * const gPlatform = &platformWinUSB;
 #else
     #error "Unsupported Platform"
